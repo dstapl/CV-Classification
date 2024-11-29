@@ -29,3 +29,4 @@ all within ~3arcsec radius max
 - AO Oct
 - V1159 Ori
 - VZ Pyx
+- TCPJ00205034+3628247
