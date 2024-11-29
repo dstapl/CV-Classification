@@ -5,7 +5,6 @@
 #' description: Want to find lowest dm that can be detected at 3\sigma significance level.
 #' ---
 
-#TODO: Adjust periodogram to Lomb-Scargle to account for gappy-data
 #'@description
 #'Simulate data of regular CV system and one exhibiting a superhump.
 #'Magnitude change estimated from periodograms.
@@ -98,8 +97,6 @@ dm <- 0.6
 
 # Periodogram gives frequency and amplitude of frequency component
 # Hypothesis test against null: (regular) and alternative (superhump) to 3sigma
-# TODO: (I'm guessing this is 2-sample t-test since differentiating superhump *from* regular)
-# EDIT: performing 2x1-sample tests
 
 dm_results <- data.frame()
 for (i in 1:100) {
