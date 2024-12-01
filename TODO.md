@@ -1,4 +1,5 @@
 # Data Simulation
+- [ ] Include CCD binning
 - [ ] Adjust Observing time inputs
   - [ ] exposure time limited to ~30s (Max 60s?)
   - [ ] Set number of frames to maximum in the Observing period
