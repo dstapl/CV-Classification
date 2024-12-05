@@ -31,6 +31,8 @@ calc_dm <- function(nframes, dt, sigma_t, period, m0, sigma_m, dm) {
 # 'sampling noise' = delay between sequential exposures & sigma_t = the error on the delay between exposures
 
 sampling_noise <- rnorm(nframes, mean=0, sd=sigma_t)
+    #rnorm creates a normal distribution.<- doesnt need to be included - just for generality 
+  
 # Generate time-series basis 
 # 't' = time of observations - e.g., used as the x-axis for plots
 t <- seq.int(1, dt*nframes, by=dt) + sampling_noise
@@ -64,9 +66,11 @@ est_dm_regular <- round(max(periodogram_regular$spec), 5)
 
 periodogram_superhump <- spec.pgram(superhumping_data, plot=FALSE, taper=0, log="no")
 est_freq_superhump  <- periodogram_superhump$freq[periodogram_superhump$spec == max(periodogram_superhump$spec)]
+  #'find the point in the spectrum (freq est plt) where amplitude of frequencu est is max - spectrum of the F.T.'
 est_period_superhump  <- round(dt/est_freq_superhump, 5)
+  #calcs period from frequency 
 est_dm_superhump <- round(max(periodogram_superhump$spec), 5)
-
+  #cal
 #plot(periodogram_superhump$freq, periodogram_superhump$spec, type="l",lty=2, col="red")
 #lines(periodogram_regular$freq, periodogram_regular$spec, lty=1, col="black")
 #legend(x="topright", legend = c(stringr::str_glue("Superhump: ", est_period_superhump), stringr::str_glue("Regular: ", est_period_regular)), lty=c(2,1),col = c("red", "black"))
@@ -100,15 +104,18 @@ dm <- 0.6
 
 # Periodogram gives frequency and amplitude of frequency component
 # Hypothesis test against null: (regular) and alternative (superhump) to 3sigma
-
+  # creating a list of false alarm probablilities all data sets modeled 
 dm_results <- data.frame()
-for (i in 1:100) {
+for (i in 1:100){
   dm_results <- rbind(dm_results,calc_dm(nframes, dt, sigma_t, period, m0, sigma_m, dm))
 }
+#creating a list of false alarm probablilities all data sets modeled 
 colnames(dm_results) <- c("regular","superhump")
 
+# we run 100 simulation data sets with all the same parameters but random noise differaenciates them - see if the freqyency measured by periodogram is significant for that superhump amplitude of the 100 sets based on the mean false alarm probability
 
 # Now do the hypothesis test
+# running a T test to see if the mean false alarm probability 
 t.test(dm_results$superhump, dm_results$regular, alternative="greater", paired=FALSE, mu=0)
 
 
