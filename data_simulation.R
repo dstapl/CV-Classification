@@ -27,9 +27,12 @@
 
 calc_dm <- function(nframes, dt, sigma_t, period, m0, sigma_m, dm) {
 # Variation between captures (in seconds; TODO: Use Julian Time? from J2000)
-sampling_noise <- rnorm(nframes, mean=0, sd=sigma_t)
-# Generate time-series basis
+  # (number of frames captured, exposure time, uncertanty on frame capture given by s.d, mean magnitude, error on m0 given by s.d., amplitude of super hump)
+# 'sampling noise' = delay between sequential exposures & sigma_t = the error on the delay between exposures
 
+sampling_noise <- rnorm(nframes, mean=0, sd=sigma_t)
+# Generate time-series basis 
+# 't' = time of observations - e.g., used as the x-axis for plots
 t <- seq.int(1, dt*nframes, by=dt) + sampling_noise
 
 # Generate noisy deviations to be added to both data sets
