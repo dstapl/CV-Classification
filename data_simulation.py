@@ -85,12 +85,12 @@ class Observing:
         return self.npix(aperture_area)*self.telescope.ccd.R**2
 
     def snr(self, sky_type, mag, aperture_area):
-        N = self.f_vega[self.filter] * 10**(-0.4*mag) * self.telescope.tel_area * self.telescope.filters.filter(self.filter) * self.t_exp * self.telescope.filters.Q(self.filter)
+        N = self.f_vega[self.filter] * 10**(-0.4*mag.to(u.mag).value) * self.telescope.tel_area * self.telescope.filters.filter(self.filter) * self.t_exp * self.telescope.filters.Q(self.filter)
 
         # from sky
         m_sky = self.telescope.filters.sky[sky_type][self.filter]
 
-        S = (self.f_vega[self.filter] * 10**(-0.4*m_sky) * self.telescope.tel_area * self.telescope.filters.filter(self.filter)
+        S = (self.f_vega[self.filter] * 10**(-0.4*m_sky.to(u.mag).value) * self.telescope.tel_area * self.telescope.filters.filter(self.filter)
              * self.t_exp * self.telescope.filters.Q(self.filter) * aperture_area.to_value(u.arcsec**2))
 
 
@@ -111,9 +111,16 @@ class CV:
     def size(self):
         return self._size
 
-    def model(self):
+    def model(self, sigma_m=0*u.mag):
         """Returns a function describing the superhump shape."""
-        return self._y
+        if sigma_m.to(u.mag) == 0*u.mag:
+            return self._y
+
+        # Otherwise generate random noise to add
+        def gen_noise(t):
+            return np.random.normal(loc = 0, scale = sigma_m.to(u.mag).value, size = len(t))
+
+        return lambda t: self._y(t) + gen_noise(t)*u.mag
 
     def _y(self, t):
         """
@@ -121,26 +128,25 @@ class CV:
         t is time series of observations.
         """
         # Use a sine wave with constant frequency
-        w = 2*np.pi / self.period
+        w = 2*np.pi / self.period.to(u.s)
         return self.m0 + self.dm*np.sin((t * w * u.dimensionless_unscaled).value)
 
 
-def calc_dm(observing_setup: Observing, object: CV, sky_type: str):
+def calc_alpha(timeseries, magnitude_series, cv_object: CV, sky_type: str):
     #snr = observing_setup.snr(sky_type, object.m0, object.size)
 
+
+    # Generate time series
+    # Assuming continuous sampling
+
     # Calculate Lomb-Scargle periodogram
-    (ls, freq, power) = Lomb(t, object, factor=3)
+    (ls, freq, power) = Lomb(timeseries, magnitude_series, cv_object.period, factor=3)
+
     # Calculate false-alarm probabilities
-    (alpha_expected, alpha_optimal) = FAP(ls, power) # alpha_optimal is included for completeness
+    (alpha_realistic, alpha_optimal) = FAP(ls, power) # alpha_optimal is included for completeness
     
-    # Perform t-test: 3sigma significance against 0
-    t_test_result = stats.ttest_1samp(alpha_expected, 0, alternative = "greater")
-    t_stat, p_value = t_test_result.statistic, t_test_result.pvalue
-    # and calculate confidence interval at 3sigma
-    sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
-    conf = t_test_result.confidence_interval(sigma_n[3]/100)
-    
-    return (t_stat, p_value, conf)
+
+    return ((freq,power), alpha_realistic)
 
 def FAP(ls: LombScargle, power):
     """Calculates the false-alarm probabilities from a Lomb-Scargle periodogram.
@@ -151,11 +157,11 @@ def FAP(ls: LombScargle, power):
     """
     # Observations will only take place at night
     # Expect a 1 day signal: f_alias = f_true + n*f_window (c.f. Astropy Lomb-Scargle Periodograms)
-    upper_alpha = ls.false_alarm_probabilities(power.max(), method = "baluev")
-    expected_alpha = ls.false_alarm_probabilities(power.max(), method = "boostrap") # Boostrap sampling method
-    return (expected_alpha, upper_alpha)
+    upper_alpha = ls.false_alarm_probability(power.max(), method = "baluev")
+    realistic_alpha = ls.false_alarm_probability(power.max(), method = "bootstrap") # Boostrap sampling method
+    return (realistic_alpha, upper_alpha)
 
-def Lomb(t, object: CV, factor = 3):
+def Lomb(t, magnitude_series, object_period, factor = 5):
     """Calculates the Lomb-Scargle periodogram of the timeseries data t.
 
     Returns:
@@ -163,12 +169,12 @@ def Lomb(t, object: CV, factor = 3):
         - freq: Frequency range evaluated
         - power: Power spectrum values
     """
-    ls = LombScargle(t, object.model(t)))
+    ls = LombScargle(t, magnitude_series)
     # Produced frequencies are NOT angular frequency
     # Period is related by T = 1/f
     # Chosen method "slow", or "cython", "fast"* can handle data point errors
     # "chi2", and "fastchi2" can not handle errors but compute fourier terms
-    freq, power = ls.auto_power(method = "auto", maximum_frequency = factor/(object.period*u.s)) # Nyquist factor (at least 2)
+    freq, power = ls.autopower(method = "auto", maximum_frequency = factor/(object_period.to(u.s))) # Nyquist factor (at least 2)
     return (ls, freq, power)
 
 
@@ -185,9 +191,9 @@ def main():
             r=1330*u.Angstrom, i=1400*u.Angstrom)
 
     sky_brightness = dict(
-            bright=dict(ha=21.2, b=18.7, v=17.7, r=18.0, i=18.3),
-            grey=dict(ha=23.3, b=21.7,v=20.7, r=20.1, i=19.6),                
-            dark=dict(ha=24.1, b=22.7, v=21.7, r=20.9, i=20.0),
+            bright=dict(ha=21.2*u.mag, b=18.7*u.mag, v=17.7*u.mag, r=18.0*u.mag, i=18.3*u.mag),
+            grey=dict(ha=23.3*u.mag, b=21.7*u.mag,v=20.7*u.mag, r=20.1*u.mag, i=19.6*u.mag),                
+            dark=dict(ha=24.1*u.mag, b=22.7*u.mag, v=21.7*u.mag, r=20.9*u.mag, i=20.0*u.mag),
             )
 
     filter_set = Filters(banddpass, Q)
@@ -197,14 +203,54 @@ def main():
     telescope = Telescope(filter_set, ccd)
 
     observing_setup = Observing(telescope, t_exp = 30*u.s, binning = 1, filter = "V")
-    cv_object = CV(period = 90*u.min, m0 = 15, dm = 0.5, sigma_m = 0)
+    cv_object = CV(period = 90*u.min, m0 = 15*u.mag, dm = 0.5*u.mag, sigma_m = 0*u.mag)
 
+    # SNR calculation 
+    print(f"Calculating SNR for: {observing_setup = }; {cv_object = }")
     snr = observing_setup.snr("dark", cv_object.m0, cv_object.size)
     print(snr)
-#    results = calc_dm(observing_setup, cv_object, "dark")
-#    print(results)
-    (t_stat, p_value, conf) = calc_dm(observing_setup, object, sky_type = "grey")
-    print(f"{t_stat = }; {p_value = }; {conf = }")
 
+    # false-alarm-probability
+    print(f"Calculating t-test for false-alarm probabilities")
+    t = np.arange(0, cv_object.period.to(u.s).value, observing_setup.t_exp.to(u.s).value) * u.s
+
+    alpha_list = []
+    spectrum_list = []
+    max_i = 5
+    for i in range(max_i):
+        # spectrum = (freq,power)
+        mag_series = cv_object.model(sigma_m = cv_object.dm*2)(t)
+        (spectrum, alpha_realistic)  = calc_alpha(t,mag_series, cv_object, sky_type = "grey")
+        alpha_list.append(alpha_realistic)
+        spectrum_list.append(spectrum)
+        print(f"Finished object {i+1} out of {max_i}")
+
+    
+    print(f"Probabilities: {alpha_list = }")
+    # Perform t-test: 3sigma significance against 0
+    t_test_result = stats.ttest_1samp(alpha_list, popmean = 0, alternative = "greater")
+    print(f"{t_test_result = }")
+    pvalue = t_test_result.pvalue
+
+    # Calculate confidence interval at 3sigma
+    sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
+    conf_level = sigma_n[3]/100
+    conf = t_test_result.confidence_interval(conf_level)
+    if pvalue > (1 - conf_level):
+        print(f"OVERALL {pvalue = } **IS SIGNIFICANT**")
+    print(f"{t_test_result = };{conf = }")
+
+    # Calculate number of simulations which passed significance level
+    contains_mean = (conf.low < 1) & (conf.high > 1)
+    print(f"{contains_mean.sum()} / {len(alpha_list)}")
+
+    # Plot stuff
+    #fig, ax = plt.subplots(2)
+    #ax[0].plot(t, mag_series)
+    # Lomb-Scargle
+    #ax[1].plot(freq,power)
+
+
+    plt.show()
 if __name__ == "__main__":
     main()
