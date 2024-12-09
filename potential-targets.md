@@ -2,7 +2,7 @@ http://ooruri.kusastro.kyoto-u.ac.jp/mailman3/hyperkitty/list/vsnet-outburst@oor
 
 # Note
 All ~16-17mag in Johnson V, some 14
-Sizes estimated from simbad picture unless given directly (**rare** ~~I haven't seen any~~)
+Sizes estimated as a few arcsec based on pt5m specifications and observing conditions ( Assumed to be point-like sources)
 pt5m limited to ~0.27" by diffraction limit
 all within ~3arcsec radius max
 
