@@ -9,6 +9,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy import units as u
+from astropy.timeseries import LombScargle
+from scipy import stats
 
 class CCD:
     px_area = 0.28 * u.arcsec
@@ -119,12 +121,55 @@ class CV:
         t is time series of observations.
         """
         # Use a sine wave with constant frequency
-        return self.m0 + self.dm*np.sin(t * 2*np.pi / self.period)
+        w = 2*np.pi / self.period
+        return self.m0 + self.dm*np.sin((t * w * u.dimensionless_unscaled).value)
 
 
 def calc_dm(observing_setup: Observing, object: CV, sky_type: str):
-    snr = observing_setup.snr(sky_type, object.m0, object.size)
-    return snr
+    #snr = observing_setup.snr(sky_type, object.m0, object.size)
+
+    # Calculate Lomb-Scargle periodogram
+    (ls, freq, power) = Lomb(t, object, factor=3)
+    # Calculate false-alarm probabilities
+    (alpha_expected, alpha_optimal) = FAP(ls, power) # alpha_optimal is included for completeness
+    
+    # Perform t-test: 3sigma significance against 0
+    t_test_result = stats.ttest_1samp(alpha_expected, 0, alternative = "greater")
+    t_stat, p_value = t_test_result.statistic, t_test_result.pvalue
+    # and calculate confidence interval at 3sigma
+    sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
+    conf = t_test_result.confidence_interval(sigma_n[3]/100)
+    
+    return (t_stat, p_value, conf)
+
+def FAP(ls: LombScargle, power):
+    """Calculates the false-alarm probabilities from a Lomb-Scargle periodogram.
+    
+    Returns:
+        - expected_alpha: Realistic probability
+        - upper_alpha: Optimal probability using the approximation described by "Baluev"
+    """
+    # Observations will only take place at night
+    # Expect a 1 day signal: f_alias = f_true + n*f_window (c.f. Astropy Lomb-Scargle Periodograms)
+    upper_alpha = ls.false_alarm_probabilities(power.max(), method = "baluev")
+    expected_alpha = ls.false_alarm_probabilities(power.max(), method = "boostrap") # Boostrap sampling method
+    return (expected_alpha, upper_alpha)
+
+def Lomb(t, object: CV, factor = 3):
+    """Calculates the Lomb-Scargle periodogram of the timeseries data t.
+
+    Returns:
+        - ls: Periodogram settings (LombScargle object)
+        - freq: Frequency range evaluated
+        - power: Power spectrum values
+    """
+    ls = LombScargle(t, object.model(t)))
+    # Produced frequencies are NOT angular frequency
+    # Period is related by T = 1/f
+    # Chosen method "slow", or "cython", "fast"* can handle data point errors
+    # "chi2", and "fastchi2" can not handle errors but compute fourier terms
+    freq, power = ls.auto_power(method = "auto", maximum_frequency = factor/(object.period*u.s)) # Nyquist factor (at least 2)
+    return (ls, freq, power)
 
 
 def main():
@@ -158,8 +203,8 @@ def main():
     print(snr)
 #    results = calc_dm(observing_setup, cv_object, "dark")
 #    print(results)
-
-
+    (t_stat, p_value, conf) = calc_dm(observing_setup, object, sky_type = "grey")
+    print(f"{t_stat = }; {p_value = }; {conf = }")
 
 if __name__ == "__main__":
     main()
