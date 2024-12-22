@@ -12,6 +12,12 @@ from astropy import units as u
 from astropy.timeseries import LombScargle
 from scipy import stats
 
+
+import nifty_ls
+import _mystatistics
+
+
+
 class CCD:
     px_area = 0.28 * u.arcsec
     R = 12 / (u.pixel)**0.5
@@ -119,15 +125,15 @@ class CV:
     def size(self):
         return self._size
 
-    def model(self):
+    def model(self, mag_noise: bool = False):
         """Returns a function describing the superhump shape.
 
         Returns:
             - Model y-data
             - Noise associated with each error bar (int = constant, list = irregular)
         """
-        if self.stddev.to(u.mag) == 0*u.mag:
-            return lambda t: (self._y(t), 0)
+        if (self.stddev.to(u.mag) == 0*u.mag) or (not mag_noise):
+            return lambda t: (self._y(t), None)
 
         # Otherwise generate random noise to add
         def gen_noise(t):
@@ -169,9 +175,12 @@ def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise, sky_type: str
     max_freq = 3*nyquist_freq.to(1/u.s) # pre-factor should = 1, but periodogram is an approximation so leaving room for errors
     (ls, freq, power) = Lomb(timeseries, magnitude_series, cv_object.period, errors = noise, factor=factor, max_freq =max_freq)
 
+    #ls = LombScargle(timeseries, magnitude_series, noise)
     # Calculate false-alarm probabilities
-    alpha_realistic = FAP(ls, power) # alpha_optimal is included for completeness
-    
+
+    #alpha_realistic = FAP(ls, power) # alpha_optimal is included for completenes
+    alpha_realistic = nifty_FAP(power.max(), freq.max(), timeseries.value, magnitude_series.value, noise.value, method = "baluev")
+
 
     return ((freq,power), alpha_realistic)
 
@@ -184,9 +193,32 @@ def FAP(ls: LombScargle, power):
     """
     # Observations will only take place at night
     # Expect a 1 day signal: f_alias = f_true + n*f_window (c.f. Astropy Lomb-Scargle Periodograms)
-    #upper_alpha = ls.false_alarm_probability(power.max(), method = "baluev")
+    upper_alpha = ls.false_alarm_probability(power.max(), method = "baluev")
+
     realistic_alpha = ls.false_alarm_probability(power.max(), method = "bootstrap") # Boostrap sampling method
     return realistic_alpha
+
+
+def nifty_FAP(max_power, fmax, timeseries, magseries, magerrors, method = "baluev"):
+    """Calculates the false-alarm probabilities from a Lomb-Scargle periodogram.
+    
+    Returns:
+        - expected_alpha: Realistic probability
+        - upper_alpha: Optimal probability using the approximation described by "Baluev"
+    """
+    # Observations will only take place at night
+    # Expect a 1 day signal: f_alias = f_true + n*f_window (c.f. Astropy Lomb-Scargle Periodograms)
+    #upper_alpha = ls.false_alarm_probability(power.max(), method = "baluev")
+
+    # realistic_alpha = ls.false_alarm_probability(power.max(), method = "bootstrap") # Boostrap sampling method
+    realistic_alpha = _mystatistics.false_alarm_probability(
+        Z = max_power, fmax = fmax, t = timeseries, y = magseries,
+        dy = magerrors, method = method,
+    )
+    return realistic_alpha
+
+
+
 
 def Lomb(t, magnitude_series, object_period, errors = 0, factor = 1, max_freq = 1/u.s):
     """Calculates the Lomb-Scargle periodogram of the timeseries data t.
@@ -196,14 +228,16 @@ def Lomb(t, magnitude_series, object_period, errors = 0, factor = 1, max_freq = 
         - freq: Frequency range evaluated
         - power: Power spectrum values
     """
-    ls = LombScargle(t, magnitude_series, errors)
+    # ls = LombScargle(t, magnitude_series, errors)
+    ls = nifty_ls.lombscargle(t.value, magnitude_series, errors)
+
     # Produced frequencies are NOT angular frequency
     # Period is related by T = 1/f
     # Chosen method "slow", or "cython", "fast"* can handle data point errors
     # "chi2", and "fastchi2" can not handle errors but compute fourier terms
-    freq, power = ls.autopower(method = "auto", nyquist_factor = factor, maximum_frequency=max_freq) # Nyquist factor (at least 2)
+    #freq, power = ls.autopower(method = "fastnifty", nyquist_factor = factor, maximum_frequency=max_freq) # Nyquist factor (at least 2)
+    freq, power = ls.freq(), ls.power
     return (ls, freq, power)
-
 
 def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", conf_level = 99.73/100, log=False):
     if log:
@@ -230,7 +264,7 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", conf_lev
         N_percent = 1 # to stop division by zero errors
     for i in range(iter_N):
         # spectrum = (freq,power)
-        mag_series, errors = cv_object.model()(t)
+        mag_series, errors = cv_object.model(mag_noise = True)(t)
         mag_list.append((mag_series, errors))
         (spectrum, alpha_realistic)  = calc_alpha(t,mag_series, cv_object, noise = errors, sky_type = sky_type)
         alpha_list.append(alpha_realistic)
@@ -311,7 +345,7 @@ def main():
     sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
     conf_level = sigma_n[3]/100
 
-    iter_N = 20
+    iter_N = 100
     res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky, conf_level = conf_level, log=False)
     (alpha_list,(t, mag_series_list, spectrum_list),pvalue,ci,prop_mean) = res
     print(f"{alpha_list = }")
