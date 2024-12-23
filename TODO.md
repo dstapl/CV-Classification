@@ -21,4 +21,4 @@
       - Calc false-alarm probability for both generated data sets (regular,superhump)
       - Accumulate probabilities in 2 column data frame
       - 2-sample t-test (greater) x=superhump, y(null)=regular
-    
+- [ ] Create heatmap of p-values varying with m0 and dm
