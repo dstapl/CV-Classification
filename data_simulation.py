@@ -179,7 +179,7 @@ def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise):
     factor = factor.to(u.dimensionless_unscaled).value
     #print(f"{factor = }")
     # TODO: Set factor
-    max_freq = 1e+2*nyquist_freq.to(1/u.s) # pre-factor should = 1, but periodogram is an approximation so leaving room for errors
+    max_freq = 1e+1*nyquist_freq.to(1/u.s) # pre-factor should = 1, but periodogram is an approximation so leaving room for errors
     (ls, freq, power) = Lomb(timeseries, magnitude_series, errors = noise, factor=factor, max_freq =max_freq)
 
     alpha_realistic = FAP(ls, power)
@@ -220,7 +220,7 @@ def Lomb(t, magnitude_series, errors = 0, factor = 1, max_freq = 1/u.s):
 
     return (ls, freq, power)
 
-def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", alpha_threshold = 1e-4):
+def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", probability_threshold = 1e-4):
     # SNR calculation 
     snr = observing_setup.snr(sky_type, cv_object.m0, cv_object.size)
 
@@ -239,9 +239,9 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", alpha_th
     # max magnitude is sky_magnitude
     max_mag = observing_setup.sky(sky_type)
 
-    mag_list = []
+    #mag_list = []
     alpha_list = []
-    spectrum_list = []
+    #spectrum_list = []
 
     for i in range(iter_N):
 
@@ -262,28 +262,49 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", alpha_th
             except:
                 unc = unc*u.mag
             errors = unc
-        mag_list.append((mag_series, errors))
+        #mag_list.append((mag_series, errors))
 
         # Want the uncertainty on measurements
         (spectrum, alpha_realistic)  = calc_alpha(t,mag_series, cv_object, noise = errors)
         alpha_list.append(alpha_realistic)
-        spectrum_list.append(spectrum)
-
-    alpha_list = np.array(alpha_list)
-
-    # Perform t-test: 3sigma significance against 0
-    alpha_list = alpha_list[~np.isnan(alpha_list)]
+        #spectrum_list.append(spectrum)
 
 
     # QQ-plot revealed that probablities have outliers some being close to 1
     # need to use nonparametric test as those data points are still important
     # Wilcoxon uses one-sample so need to test against variable (X - mean) < 0
 
+    # TODO: Check prior is correct etc.
     # Want to test that the mean of the false alarm list is less than the threshold
-    test_result = stats.wilcoxon(alpha_list - alpha_threshold, correction = False, alternative = "less")
+
+    # Alpha list is P(FAP < alpha) but FAP is P(peak | noise only)
+    # Need to convert to P(noise only | peak) through Bayes' theorem (Assuming probability of a peak is a constant)
+    # P(noise only | peak) prop to P(peak | noise only) * P(noise only)
+    # P(noise only) is related to SNR: P(noise only) = prop to 1/SNR (i.e. 1/snr = noise/m0)
+    #   P(noise only) propt to 1/(1 + function of SNR)
+    #   SNR from magnitude formula so using P(noise only) = 1/(1 + SNR^n) where n is some power law number 
+
+
+    # alphalist is prob_peak_given_noise_only
+
+    # Adjusted based on previous analysis of mean SNR only (notebook)
+    # For lower exposure times (<60s) n>~1
+    # Since SNR ~ Signal = sqrt(N_obs), n = 1 to 2
+    power_n = 1.5 # average value
+    prob_noise_only = 1/(1 + snr**power_n)
+    prob_peak = 1 - 99.7/100 #0.8 # Assume peak is always present
+    prob_noise_only_given_peak = (prob_noise_only / prob_peak) * alpha_list
+
+
+
+
+    test_result = stats.wilcoxon(prob_noise_only_given_peak - probability_threshold, alternative = "less",
+        correction = False, nan_policy = "omit"
+    )
     pvalue = test_result.pvalue
 
-    return (alpha_list, (t, mag_list, spectrum_list), pvalue)
+    #return (alpha_list, (t, mag_list, spectrum_list), pvalue)
+    return (alpha_list, (t, None, None), pvalue)
 
 def main():
     print("Start")
@@ -323,7 +344,7 @@ def main():
     conf_level = sigma_n[n_sigma_away]/100
     conf_level = round(conf_level, 10) # Floating point innacuracies
 
-    alpha_threshold = 1e-4
+    probability_threshold = 1e-3
 
     iter_N = 100 # For each innermost loop
 
@@ -346,7 +367,7 @@ def main():
             (m0, dm) = point
             cv_object = CV(period = 90*u.min, m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
 
-            res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, alpha_threshold = alpha_threshold)
+            res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, probability_threshold = probability_threshold)
             (_,_,pvalue) = res
 
             # TODO: Return n-sigma significance (0 = not significant, 1 = 1-sigma, 2 = 2-sigma, 3 = 3-sigma or better)
