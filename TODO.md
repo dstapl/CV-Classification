@@ -1,4 +1,9 @@
 # Data Simulation
+- [ ] **URGENT** REDO iter_N = 1000 simulation for 2-2.5x period code
+    - [ ] Check if 2-2.5 period *or* 2-2.5h of observing
+
+
+
 - [ ] Include CCD binning
 - [ ] Adjust Observing time inputs
   - [ ] exposure time limited to ~30s (Max 60s?)
@@ -21,4 +26,4 @@
       - Calc false-alarm probability for both generated data sets (regular,superhump)
       - Accumulate probabilities in 2 column data frame
       - 2-sample t-test (greater) x=superhump, y(null)=regular
-    
+- [ ] Create heatmap of p-values varying with m0 and dm
