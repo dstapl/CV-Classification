@@ -1,4 +1,9 @@
 # Data Simulation
+- [ ] **URGENT** REDO iter_N = 1000 simulation for 2-2.5x period code
+    - [ ] Check if 2-2.5 period *or* 2-2.5h of observing
+
+
+
 - [ ] Include CCD binning
 - [ ] Adjust Observing time inputs
   - [ ] exposure time limited to ~30s (Max 60s?)

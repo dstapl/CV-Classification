@@ -113,7 +113,6 @@ class Observing:
     
         total_noise_variance = N + S + D + total_R
 
-        #print(f"{N = };{total_noise_variance = }")
         return N/np.sqrt(total_noise_variance)
 
 class CV:
@@ -142,12 +141,9 @@ class CV:
 
     # Otherwise generate random noise to add
     def _gen_noise(self, t):
-        #return np.absolute(np.random.normal(loc = 0, scale = self.stddev.to(u.mag).value, size = len(t)))
         sigma = self.stddev.to(u.mag).value
 
         # TODO Set sigma of noise
-        #noise = np.random.normal(loc = sigma, scale = 1, size = len(t))
-        #noise = np.random.normal(loc = 0, scale = sigma, size = len(t))
         noise = np.random.poisson(lam=sigma, size = len(t))
 
         return noise
@@ -167,11 +163,8 @@ class CV:
         return self.m0 + self.dm*np.sin((t * w * u.dimensionless_unscaled).value)
 
 
-def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise, sky_type: str):
+def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise):
     """Noise on each data point - constant or list for periodogram"""
-    #snr = observing_setup.snr(sky_type, object.m0, object.size)
-
-
     # Generate time series
     # Assuming continuous sampling
 
@@ -189,7 +182,7 @@ def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise, sky_type: str
     max_freq = 1e+2*nyquist_freq.to(1/u.s) # pre-factor should = 1, but periodogram is an approximation so leaving room for errors
     (ls, freq, power) = Lomb(timeseries, magnitude_series, errors = noise, factor=factor, max_freq =max_freq)
 
-    alpha_realistic = FAP(ls, power) # alpha_optimal is included for completenes
+    alpha_realistic = FAP(ls, power)
 
 
     return ((freq,power), alpha_realistic)
@@ -204,9 +197,9 @@ def FAP(ls: LombScargle, power, method = "baluev"):
     """
     # Observations will only take place at night
     # Expect a 1 day signal: f_alias = f_true + n*f_window (c.f. Astropy Lomb-Scargle Periodograms)
-    #upper_alpha = ls.false_alarm_probability(power.max(), method = method)
-
-    realistic_alpha = ls.false_alarm_probability(power.max(), method = method) # Ideally Boostrap sampling
+    # TODO: Rotational period will have an associated peak
+    # Ideally Boostrap sampling, but Baluev is **much** faster
+    realistic_alpha = ls.false_alarm_probability(power.max(), method = method)
     return realistic_alpha
 
 def Lomb(t, magnitude_series, errors = 0, factor = 1, max_freq = 1/u.s):
@@ -227,106 +220,70 @@ def Lomb(t, magnitude_series, errors = 0, factor = 1, max_freq = 1/u.s):
 
     return (ls, freq, power)
 
-def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", alpha_threshold = 1e-4, conf_level = 99.73/100, log=False):
-    if log:
-        print("Calculating for {observing_setup = }; {cv_object = }")
+def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", alpha_threshold = 1e-4):
     # SNR calculation 
-    if log:
-        print(f"Calculating SNR for: {observing_setup = }; {cv_object = }")
     snr = observing_setup.snr(sky_type, cv_object.m0, cv_object.size)
-    #print(f"Mean flux to noise snr: {snr = }")
-    if log: 
-        print(snr)
 
-    # false-alarm-probability
-    if log:
-        print(f"Calculating t-test for false-alarm probabilities")
-    t = np.arange(0, cv_object.period.to(u.s).value, observing_setup.t_exp.to(u.s).value) * u.s
-
+    # https://slittlefair.staff.shef.ac.uk/teaching/phy241/lectures/l09/
     # TODO: E.g. Noise is 10% of mean flux m0 so noise = 10% * m0 = 0.1 * m0 --> 0.1 = noise/m0 = 1/snr
     # from SNR of object (using mean flux): snr = m0 / noise --> 1/snr = noise / m0 
     # so dm_snr = (dm/m0) / (noise / m0) = dm/noise
-    #dm_snr = observing_setup.snr(sky_type, cv_object.stddev, cv_object.size, mag_above_noise = True)
     dm_snr = (cv_object.stddev / cv_object.m0) * snr
+
+
+    # TODO: Ideal observation time is 2-2.5 times the period
+    # 2 is a minimum so longer times will produce more reliable results
+    t = np.arange(0, 2*cv_object.period.to(u.s).value, observing_setup.t_exp.to(u.s).value) * u.s
+
 
     # max magnitude is sky_magnitude
     max_mag = observing_setup.sky(sky_type)
 
-    #print(f"Amplitude to mean flux SNR: {dm_snr = }\n")
     mag_list = []
     alpha_list = []
     spectrum_list = []
-    #percentage = 10
-    #N_percent = iter_N // percentage
-    #if N_percent == 0:
-    #    N_percent = 1 # to stop division by zero errors
+
     for i in range(iter_N):
-        # spectrum = (freq,power)
-        # Measurement uncertainty is based on SNR of dm to m0
-        # dm / sigma_m = SNR ==> sigma_m = dm / SNR
-        #unc =  cv_object.stddev / snr
 
         mag_series, mag_changes  = cv_object.model(mag_noise = True)(t)
         # max magnitude is sky_magnitude
         mag_series = np.clip(mag_series, a_min = -100*u.mag, a_max = max_mag)
 
-        #unc = cv_object.m0 / cv_object.stddev
-
-        # unc is dm/snr
+        # Measurement uncertainty (sigma) = dm/snr
         unc = cv_object.stddev/dm_snr
+
         # Now replace changes in magnitude with measurement uncertainty
-        #errors = mag_changes
         if unc is None:
             errors = None
         else:
+            # TODO: Hacky way; changes during development; stabilise in future
             try:
                 unc = unc.to(u.mag)
             except:
                 unc = unc*u.mag
-            #errors = np.repeat(unc, len(mag_series))
             errors = unc
         mag_list.append((mag_series, errors))
 
         # Want the uncertainty on measurements
-        (spectrum, alpha_realistic)  = calc_alpha(t,mag_series, cv_object, noise = errors, sky_type = sky_type)
+        (spectrum, alpha_realistic)  = calc_alpha(t,mag_series, cv_object, noise = errors)
         alpha_list.append(alpha_realistic)
         spectrum_list.append(spectrum)
-    #    if i % N_percent == 0:
-    #        print(f"Completed {i/N_percent *percentage}% ({i}/{iter_N})")
-        if log:
-            print(f"Finished object {i+1} out of {iter_N}")
 
     alpha_list = np.array(alpha_list)
-    if log:
-        print(f"Probabilities: {alpha_list = }")
+
     # Perform t-test: 3sigma significance against 0
     alpha_list = alpha_list[~np.isnan(alpha_list)]
 
 
-    # alpha has outliers from some probabilities being close to 1
-    # need to use nonparametric test
-    #t_test_result = stats.ttest_1samp(alpha_list, popmean = alpha_threshold, alternative = "less")
-    # Wilcoxon uses one-sample so need to test against variable X - mean
-    test_result = stats.wilcoxon(alpha_list - alpha_threshold, correction = False, alternative = "less")
+    # QQ-plot revealed that probablities have outliers some being close to 1
+    # need to use nonparametric test as those data points are still important
+    # Wilcoxon uses one-sample so need to test against variable (X - mean) < 0
 
-    if log:
-        print(f"{test_result = }")
+    # Want to test that the mean of the false alarm list is less than the threshold
+    test_result = stats.wilcoxon(alpha_list - alpha_threshold, correction = False, alternative = "less")
     pvalue = test_result.pvalue
 
-#    conf = t_test_result.confidence_interval(conf_level)
-#    if log and (pvalue > (1 - conf_level)):
-#        print(f"OVERALL {pvalue = } **IS SIGNIFICANT(ly BAD)**")
-#    if log:
-#        print(f"{t_test_result = };{conf = }")
-#
-#    # Calculate number of simulations which passed significance level
-#    # *GOOD* results have alpha (probability) = 0
-#    contains_mean = (alpha_list > conf.low) & (alpha_list < conf.high)
-#    proportion_mean = contains_mean.sum() / len(alpha_list)
-#    if log:
-#        print(f"{proportion_mean = }")
-
-    return (alpha_list, (t, mag_list, spectrum_list), pvalue)#, conf, proportion_mean)
+    return (alpha_list, (t, mag_list, spectrum_list), pvalue)
 
 def main():
     print("Start")
@@ -356,41 +313,9 @@ def main():
 
     ### INPUTS
 
-
-    #m0 = 17 # Mean magnitude
-    sky = "bright"
-    m0 = 17.1*u.mag
-    dm = 0.6*u.mag
-    cv_object = CV(period = 90*u.min, m0 = m0, dm = dm, sigma_m = dm) # Initial value of no noise
-#    SNR = observing_setup.snr(sky_type = sky, mag = cv_object.m0, aperture_area=cv_object.size )
-#    print(f"{SNR = }")
-    # (https://slittlefair.staff.shef.ac.uk/teaching/phy241/lectures/l09/)
-    # SNR = (dm/mean flux)% / (noise/mean flux)% = dm / noise
-    # TODO: Need to find minimum SNR such that the peak is still detected
-    # dm / sigma_m = SNR ==> sigma_m = dm / SNR
-
-
-    # TODO: Uncomment?
-    # sigma_m = (dm/SNR)
-    # cv_object.stddev= sigma_m 
-
-    # Calculate confidence interval at 3sigma
-    sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
-    n_sigma_away = 3
-    conf_level = sigma_n[n_sigma_away]/100
-    conf_level = round(conf_level, 10) # Floating point innacuracies
-    alpha_threshold = 1e-3
-
-    iter_N = 1000
-    #res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky, alpha_threshold = alpha_threshold,  conf_level = conf_level, log=False)
-    #(alpha_list,(t, mag_series_list, spectrum_list),pvalue) = res#,ci,prop_mean) = res
-
-
-    # TODO: Create heatmap 
-
     # Plot m0, dm with p-value as heat
     # For each sky (so 3 plots overall)
-    # Bounds: sky=[dark, grey, bright], m0=[10, sky_mag[sky_type]], dm = [0, 1]A
+    # Bounds: sky=[dark, grey, bright], m0=[10, sky_mag[sky_type]], dm = [0, 1]
     sky_values = ["dark", "grey", "bright"]
 
     sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
@@ -398,44 +323,33 @@ def main():
     conf_level = sigma_n[n_sigma_away]/100
     conf_level = round(conf_level, 10) # Floating point innacuracies
 
-    def pvaltosigma(pvalue):
-        "Converts p to n-sigma significant; 0 indicates not significant i.e., failed"
-        for value in sigma_n.values():
-            if pvalue < (1 - value / 100):
-                return list(sigma_n.keys())[list(sigma_n.values()).index(value)]
-        else:
-            return 0
-         
+    alpha_threshold = 1e-4
 
-    alpha_threshold = 1e-3
+    iter_N = 100 # For each innermost loop
 
-    iter_N = 1000 # For each innermost loop
-    
-     
     fig, ax = plt.subplots(3)
-
-
-
+    fig.set_dpi(600) # default 100
     # Create a list of points
 
     for idx, sky_type in enumerate(sky_values, start=0):
         sky_mag = observing_setup.sky(sky_type).value
         m0_step = 0.1
         m0_values = np.arange(10, sky_mag+m0_step, m0_step)
-        dm_step = 0.01
-        dm_values = np.arange(0, 1+dm_step, dm_step)
+        dm_step = 0.05
+        dm_values = np.arange(0, 0.61+dm_step, dm_step)
     
         X, Y = np.meshgrid(m0_values, dm_values)
         points = [(x, y) for x, y in zip(X.ravel(), Y.ravel())]# Not sure if ravel is actually needed
        
+        # Redefine each time with new cv_object
         def compute(point):
             (m0, dm) = point
             cv_object = CV(period = 90*u.min, m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
 
-            res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky, alpha_threshold = alpha_threshold,  conf_level = conf_level, log=False)
+            res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, alpha_threshold = alpha_threshold)
             (_,_,pvalue) = res
 
-            #heat = pvaltosigma(pvalue)
+            # TODO: Return n-sigma significance (0 = not significant, 1 = 1-sigma, 2 = 2-sigma, 3 = 3-sigma or better)
             heat = 1 if pvalue <= (1-conf_level) else 0
             return heat
         with pathos.multiprocessing.ProcessingPool() as pool:
@@ -449,57 +363,22 @@ def main():
         Z = np.array(Z).reshape(Y.shape)
 
 
-        sky_heatmap = ax[idx].imshow(Z, extent=[min(m0_values), max(m0_values), min(dm_values), max(dm_values)],
-               origin='lower', aspect='auto', cmap='viridis')
+        # Create heatmap of if the *truth* of the peak is significant (1 = True, 0 = False)
+        sky_heatmap = ax[idx].imshow(Z,
+            extent=[min(m0_values), max(m0_values), min(dm_values), max(dm_values)],
+            origin='lower', aspect='auto', cmap='viridis'
+        )
 
-        sky_cbar = fig.colorbar(sky_heatmap, ax=ax[idx], label=f"Sigma significance")
+        # TODO: Discrete values on colour bar
+        _ = fig.colorbar(sky_heatmap, ax=ax[idx], label="Sigma significance")
         ax[idx].set_xlabel("m0")
         ax[idx].set_ylabel("dm")
         ax[idx].set_title(f"Pr(NOT FALSE ALARM) = True peak for **{sky_type} SKY**")
-
-
-        continue
-        Z = np.zeros((len(m0_values), len(dm_values))) # (len Y, len X)
-        percentage = 10
-        N_percent = len(m0_values) // percentage # Outerloop
-        if N_percent == 0:
-            N_percent = 1 # to stop division by zero errors
-
-        for i, m0 in enumerate(m0_values):
-            for j, dm in enumerate(dm_values):
-                #sky = "bright"
-                #m0 = 17.1*u.mag
-                #dm = 0.6*u.mag
-                cv_object = CV(period = 90*u.min, m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
-
-                res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky, alpha_threshold = alpha_threshold,  conf_level = conf_level, log=False)
-                (_,_,pvalue) = res
-
-                #heat = pvaltosigma(pvalue)
-                heat = 1 if pvalue < (1-conf_level) else 0
-                Z[i,j] = heat
-    
-            if i % N_percent == 0:
-                print(f"Completed {i/N_percent *percentage}% ({i}/{len(m0_values)}) of sky type {idx+1}/{len(sky_values)}")
-
-        # Draw heatmap
-        sky_heatmap = ax[idx].imshow(Z, extent=[min(m0_values), max(m0_values), min(dm_values), max(dm_values)],
-               origin='lower', aspect='auto', cmap='viridis')
-
-        sky_cbar = fig.colorbar(sky_heatmap, ax=ax[idx], label=f"Sigma significance")
-        ax[idx].set_xlabel("m0")
-        ax[idx].set_ylabel("dm")
-        ax[idx].set_title(f"Pr(NOT FALSE ALARM) = True peak for **{sky_type} SKY**")
-
 
     plt.show()
-    # Want to draw contour line of 3 sigma 
 
-    return 0 
-    
-    
-    
-    
+    return 0
+
     print(f"\nMean uncertainty on measurements = {np.mean(np.array(mag_series_list,dtype=object)[:,1])}") 
     print(f"\n{np.random.choice(alpha_list, 20) = }")
     print(f"False alarm list: Mean = {np.mean(alpha_list)}, variance = {np.var(alpha_list)}")
