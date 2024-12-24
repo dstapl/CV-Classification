@@ -330,7 +330,7 @@ def main():
     ccd = CCD()
     telescope = Telescope(filter_set, ccd)
 
-    observing_setup = Observing(telescope, t_exp = 30*u.s, binning = 2, filter = "V")
+    observing_setup = Observing(telescope, t_exp = 45*u.s, binning = 2, filter = "V")
 
     ### INPUTS
 
@@ -344,7 +344,7 @@ def main():
     conf_level = sigma_n[n_sigma_away]/100
     conf_level = round(conf_level, 10) # Floating point innacuracies
 
-    probability_threshold = 1e-3
+    probability_threshold = 1e-4
 
     iter_N = 100 # For each innermost loop
 
