@@ -1,0 +1,772 @@
+** RX And (UGZ+NLAD) **
+
+
+20250122.810   136      (Gary Poyner)
+  20250123.5363 138C      (Masayuki Moriyama)
+  20250123.8604  138      (Eddy Muyllaert)
+  20250125.408  <130      (Tsuneo Horie)
+  20250126.403  <130      (Tsuneo Horie)
+  20250127.7882  121      (Eddy Muyllaert)
+  20250128.408   111      (Tsuneo Horie)
+  20250129.403   111      (Tsuneo Horie)
+  20250130.410   113      (Tsuneo Horie)
+  20250130.725  11.59      (Pavol A. Dubovsky)
+  20250130.7757  115      (Eddy Muyllaert)
+  20250131.7701  117      (Eddy Muyllaert)
+  20250201.7806  122      (Eddy Muyllaert)
+  20250202.401   124      (Yoshiyasu Sato)
+  20250202.7840  129      (Eddy Muyllaert)
+  20250202.796   132      (Gary Poyner)
+
+
+** AR And (UGSS) **
+
+
+20250123.5461 167C      (Masayuki Moriyama)
+  20250123.8743 <142      (Eddy Muyllaert)
+  20250125.416  <118      (Tsuneo Horie)
+  20250126.408  <126      (Tsuneo Horie)
+  20250127.7951 <142      (Eddy Muyllaert)
+  20250128.413  <126      (Tsuneo Horie)
+  20250129.408  <126      (Tsuneo Horie)
+  20250130.415   124      (Tsuneo Horie)
+  20250130.8076  123      (Eddy Muyllaert)
+  20250131.7722  124      (Eddy Muyllaert)
+  20250201.7813  122      (Eddy Muyllaert)
+  20250202.7847  123      (Eddy Muyllaert)
+  20250202.793   124      (Gary Poyner)
+
+
+** IW And (UGZ(IW)) **
+
+
+20250123.5369 145C      (Masayuki Moriyama)
+  20250123.8639 <140      (Eddy Muyllaert)
+  20250125.406   135      (Tsuneo Horie)
+  20250126.401   136      (Tsuneo Horie)
+  20250127.7889  142      (Eddy Muyllaert)
+  20250128.408  <133      (Tsuneo Horie)
+  20250129.403  <133      (Tsuneo Horie)
+  20250130.410  <133      (Tsuneo Horie)
+  20250130.7944  145      (Eddy Muyllaert)
+  20250131.7847 <144      (Eddy Muyllaert)
+  20250201.7965 <144      (Eddy Muyllaert)
+  20250202.797   151      (Gary Poyner)
+  20250202.7993 <144      (Eddy Muyllaert)
+
+
+** AT Ara (UGSS) **
+
+
+20250130.692   138      (Rod Stubbings)
+  20250131.708   140      (Rod Stubbings)
+
+
+** V793 Ara (UG) **
+
+
+20250130.660   149      (Rod Stubbings)
+  20250131.697   149      (Rod Stubbings)
+
+
+** SS Aur (UGSS) **
+
+
+20250123.001   129      (Gary Poyner)
+  20250123.447   123      (Tsuneo Horie)
+  20250123.6396 125C      (Masayuki Moriyama)
+  20250123.9111  124      (Eddy Muyllaert)
+  20250124.547   123      (Tsuneo Horie)
+  20250125.020   122      (Gary Poyner)
+  20250125.485   120      (Tsuneo Horie)
+  20250125.8149 11.89C      (Masayuki Moriyama)
+  20250126.472   118      (Tsuneo Horie)
+  20250127.760  111CV      (Klaus Wenzel)
+  20250127.7750  111      (Eddy Muyllaert)
+  20250128.465   114      (Tsuneo Horie)
+  20250129.437   114      (Tsuneo Horie)
+  20250130.447   120      (Tsuneo Horie)
+  20250130.7283 121C      (Masayuki Moriyama)
+  20250130.7826  119      (Eddy Muyllaert)
+  20250131.017   121      (Gary Poyner)
+  20250131.7757  124      (Eddy Muyllaert)
+  20250201.7861  129      (Eddy Muyllaert)
+  20250202.767  133CV      (Klaus Wenzel)
+  20250202.7910  134      (Eddy Muyllaert)
+  20250202.909   135      (Gary Poyner)
+  20250203.467  <125      (Tsuneo Horie)
+
+
+** Z  Cam (UGZ) **
+
+
+20250123.024   137      (Gary Poyner)
+  20250123.8583  135      (Eddy Muyllaert)
+  20250125.067   136      (Gary Poyner)
+  20250125.8669 135C      (Masayuki Moriyama)
+  20250126.7987 13.713V      (Katsuaki Kubodera)
+  20250126.7992 13.665V      (Katsuaki Kubodera)
+  20250126.7996 13.712V      (Katsuaki Kubodera)
+  20250126.8001 13.696V      (Katsuaki Kubodera)
+  20250126.8006 13.713V      (Katsuaki Kubodera)
+  20250126.8010 13.737V      (Katsuaki Kubodera)
+  20250126.8015 13.679V      (Katsuaki Kubodera)
+  20250126.8020 13.722V      (Katsuaki Kubodera)
+  20250126.8024 13.708V      (Katsuaki Kubodera)
+  20250126.8029 13.744V      (Katsuaki Kubodera)
+  20250126.8033 13.708V      (Katsuaki Kubodera)
+  20250126.8038 13.729V      (Katsuaki Kubodera)
+  20250126.8043 13.698V      (Katsuaki Kubodera)
+  20250126.8047 13.769V      (Katsuaki Kubodera)
+  20250126.8052 13.736V      (Katsuaki Kubodera)
+  20250126.8057 13.719V      (Katsuaki Kubodera)
+  20250127.7813  137      (Eddy Muyllaert)
+  20250130.747  13.58      (Pavol A. Dubovsky)
+  20250130.7875  135      (Eddy Muyllaert)
+  20250131.069   133      (Gary Poyner)
+  20250131.694   133      (Takuichiro Onishi)
+  20250131.7799  122      (Eddy Muyllaert)
+  20250201.7917  105      (Eddy Muyllaert)
+  20250202.7931  105      (Eddy Muyllaert)
+  20250202.942   105      (Gary Poyner)
+
+
+** BV Cen (UGSS) **
+
+
+20250122.589   130      (Rod Stubbings)
+  20250123.3306 12.77cG      (Masao Funada)
+  20250126.566   130      (Rod Stubbings)
+  20250127.2858 12.44cG      (Masao Funada)
+  20250130.608   130      (Rod Stubbings)
+  20250131.640   126      (Rod Stubbings)
+  20250202.2527 12.65V      (Masao Funada)
+  20250202.2544 12.34Rc      (Masao Funada)
+  20250202.2553 11.90Ic      (Masao Funada)
+
+
+** MU Cen (UGSS) **
+
+
+20250122.585   149      (Rod Stubbings)
+  20250124.578   148      (Rod Stubbings)
+  20250125.3454 14.76cG      (Masao Funada)
+  20250126.535   142      (Rod Stubbings)
+  20250127.2840 14.97V      (Masao Funada)
+  20250127.2851 14.34Rc      (Masao Funada)
+  20250127.2860 13.86Ic      (Masao Funada)
+  20250129.526   148      (Rod Stubbings)
+  20250130.578   142      (Rod Stubbings)
+  20250131.615   128      (Rod Stubbings)
+  20250202.242  12.95V      (Gary Poyner)
+  20250202.2425 12.92V      (Masao Funada)
+  20250202.2436 12.70Rc      (Masao Funada)
+  20250202.2444 12.49Ic      (Masao Funada)
+
+
+** V373 Cen (UGSS) **
+
+
+20250126.537   138      (Rod Stubbings)
+  20250127.2873 13.73V      (Masao Funada)
+  20250127.2885 13.69Rc      (Masao Funada)
+  20250127.2893 13.44Ic      (Masao Funada)
+  20250129.528   138      (Rod Stubbings)
+  20250130.551   138      (Rod Stubbings)
+  20250131.617   139      (Rod Stubbings)
+
+
+** V803 Cen (UGSU/HeDN) **
+
+
+20250122.587   136      (Rod Stubbings)
+  20250123.3272 14.68cG      (Masao Funada)
+  20250126.564   134      (Rod Stubbings)
+  20250127.2949 14.43V      (Masao Funada)
+  20250127.2960 14.52Rc      (Masao Funada)
+  20250127.2969 14.58Ic      (Masao Funada)
+  20250130.585   136      (Rod Stubbings)
+  20250131.637   136      (Rod Stubbings)
+
+
+** V1040 Cen (=RXJ1155.4-5641, UGSU) **
+
+
+20250122.565   145      (Rod Stubbings)
+  20250124.576   138      (Rod Stubbings)
+  20250125.3382 13.87cG      (Masao Funada)
+  20250126.531   140      (Rod Stubbings)
+  20250129.524   138      (Rod Stubbings)
+  20250130.576   140      (Rod Stubbings)
+  20250131.633   146      (Rod Stubbings)
+
+
+** ST Cha (UGZ(IW)) **
+
+
+20250122.510   140      (Rod Stubbings)
+  20250125.2581 15.39cG      (Masao Funada)
+  20250126.457  <150      (Rod Stubbings)
+  20250129.506   150      (Rod Stubbings)
+  20250130.508   136      (Rod Stubbings)
+  20250131.669   142      (Rod Stubbings)
+
+
+** WZ CMa (UGZ:) **
+
+
+20250122.515  <118      (Tsuneo Horie)
+  20250123.1521 15.03V      (Masao Funada)
+  20250123.1532 14.75Rc      (Masao Funada)
+  20250123.1540 14.80Ic      (Masao Funada)
+  20250123.506  <118      (Tsuneo Horie)
+  20250126.473   150      (Rod Stubbings)
+  20250126.483  <118      (Tsuneo Horie)
+  20250128.487  <124      (Tsuneo Horie)
+  20250128.916  13.86C      (Gary Poyner)
+  20250128.9171 14.20cG      (Masao Funada)
+  20250129.485  <124      (Tsuneo Horie)
+  20250130.466   141      (Rod Stubbings)
+  20250130.494  <118      (Tsuneo Horie)
+  20250131.656   142      (Rod Stubbings)
+  20250203.499  <118      (Tsuneo Horie)
+
+
+** HL CMa (UGZ) **
+
+
+20250123.453  <109      (Tsuneo Horie)
+  20250123.5914 133C      (Masayuki Moriyama)
+  20250123.8965 <130      (Eddy Muyllaert)
+  20250124.553  <109      (Tsuneo Horie)
+  20250126.480   138      (Rod Stubbings)
+  20250126.480  <120      (Tsuneo Horie)
+  20250127.8285 <130      (Eddy Muyllaert)
+  20250128.485  <120      (Tsuneo Horie)
+  20250128.8998 11.98cG      (Masao Funada)
+  20250129.483   118      (Tsuneo Horie)
+  20250129.483   118      (Rod Stubbings)
+  20250130.469   118      (Rod Stubbings)
+  20250130.492   118      (Tsuneo Horie)
+  20250130.7180 120C      (Masayuki Moriyama)
+  20250130.8347  118      (Eddy Muyllaert)
+  20250131.651   118      (Rod Stubbings)
+  20250131.6553 12.05V      (Masao Funada)
+  20250131.6560 11.88Rc      (Masao Funada)
+  20250131.6565 12.30B      (Masao Funada)
+  20250131.8201  118      (Eddy Muyllaert)
+  20250201.8299  121      (Eddy Muyllaert)
+  20250202.8361  122      (Eddy Muyllaert)
+  20250203.498  <120      (Tsuneo Horie)
+
+
+** SV CMi (UGSS) **
+
+
+20250122.508  <122      (Tsuneo Horie)
+  20250123.462  <122      (Tsuneo Horie)
+  20250123.6532 163C      (Masayuki Moriyama)
+  20250123.8979 <139      (Eddy Muyllaert)
+  20250124.489  <160C      (Mitsutaka Hiraga)
+  20250124.551   164      (Rod Stubbings)
+  20250124.558  <122      (Tsuneo Horie)
+  20250124.8204 158:C     (Masayuki Moriyama)
+  20250125.7991 158:C     (Masayuki Moriyama)
+  20250126.017  16.07C      (Gary Poyner)
+  20250126.0167 15.91C      (Masao Funada)
+  20250126.490  <129      (Tsuneo Horie)
+  20250127.8299 <139      (Eddy Muyllaert)
+  20250128.478  <134      (Tsuneo Horie)
+  20250129.475  <129      (Tsuneo Horie)
+  20250129.481   161      (Rod Stubbings)
+  20250130.494   162      (Rod Stubbings)
+  20250130.498  <129      (Tsuneo Horie)
+  20250130.8458 <144      (Eddy Muyllaert)
+  20250131.8271 <144      (Eddy Muyllaert)
+  20250201.8410 <144      (Eddy Muyllaert)
+  20250202.8396  143      (Eddy Muyllaert)
+  20250202.887   145      (Gary Poyner)
+  20250203.506  <129      (Tsuneo Horie)
+
+
+** SY Cnc (UGZ) **
+
+
+20250122.522  <128      (Tsuneo Horie)
+  20250123.017   131      (Gary Poyner)
+  20250123.9083  134      (Eddy Muyllaert)
+  20250124.560   137      (Rod Stubbings)
+  20250125.043   133      (Gary Poyner)
+  20250125.8316 130C      (Masayuki Moriyama)
+  20250126.499   128      (Tsuneo Horie)
+  20250126.549   130      (Rod Stubbings)
+  20250127.8514  127      (Eddy Muyllaert)
+  20250128.496   128      (Tsuneo Horie)
+  20250129.492   127      (Tsuneo Horie)
+  20250130.507   125      (Tsuneo Horie)
+  20250130.596   128      (Rod Stubbings)
+  20250130.8389  126      (Eddy Muyllaert)
+  20250131.085   127      (Gary Poyner)
+  20250131.628   126      (Rod Stubbings)
+  20250131.683   123      (Takuichiro Onishi)
+  20250131.8299  126      (Eddy Muyllaert)
+  20250201.8382  125      (Eddy Muyllaert)
+  20250202.8465  125      (Eddy Muyllaert)
+  20250202.897   124      (Gary Poyner)
+
+
+** YZ Cnc (UGSU) **
+
+
+20250122.517   125      (Tsuneo Horie)
+  20250123.012   119      (Gary Poyner)
+  20250123.510   120      (Tsuneo Horie)
+  20250123.6597 117C      (Masayuki Moriyama)
+  20250123.9049  112      (Eddy Muyllaert)
+  20250124.565   110      (Tsuneo Horie)
+  20250124.8391 11.58C      (Masayuki Moriyama)
+  20250125.038   114      (Gary Poyner)
+  20250125.785   115      (Tsuneo Horie)
+  20250125.8141 115C      (Masayuki Moriyama)
+  20250126.497   109      (Tsuneo Horie)
+  20250127.013  11.73C      (Gary Poyner)
+  20250127.0147 11.65cG      (Masao Funada)
+  20250127.7799  116      (Eddy Muyllaert)
+  20250127.812   114      (Tsuneo Horie)
+  20250128.491   116      (Tsuneo Horie)
+  20250129.489   120      (Tsuneo Horie)
+  20250130.503   123      (Tsuneo Horie)
+  20250130.7840  117      (Eddy Muyllaert)
+  20250131.083   118      (Gary Poyner)
+  20250131.8222  119      (Eddy Muyllaert)
+  20250201.8354  120      (Eddy Muyllaert)
+  20250202.8431  121      (Eddy Muyllaert)
+  20250202.894   123      (Gary Poyner)
+  20250203.510   124  ### (Tsuneo Horie)
+
+
+** AT Cnc (UGZ) **
+
+
+20250122.524  <126      (Tsuneo Horie)
+  20250123.015   135      (Gary Poyner)
+  20250123.516  <126      (Tsuneo Horie)
+  20250123.6605 137C      (Masayuki Moriyama)
+  20250123.9056  136      (Eddy Muyllaert)
+  20250124.8399 136C      (Masayuki Moriyama)
+  20250125.040   136      (Gary Poyner)
+  20250125.8245 137C      (Masayuki Moriyama)
+  20250125.837  <121      (Tsuneo Horie)
+  20250126.501  <126      (Tsuneo Horie)
+  20250127.767  135CV      (Klaus Wenzel)
+  20250127.8493  136      (Eddy Muyllaert)
+  20250128.497  <134      (Tsuneo Horie)
+  20250129.494  <134      (Tsuneo Horie)
+  20250130.508  <126      (Tsuneo Horie)
+  20250130.8361  136      (Eddy Muyllaert)
+  20250131.084   137      (Gary Poyner)
+  20250131.8229  136      (Eddy Muyllaert)
+  20250201.8361  136      (Eddy Muyllaert)
+  20250202.776  136CV      (Klaus Wenzel)
+  20250202.8438  136      (Eddy Muyllaert)
+  20250202.895   136      (Gary Poyner)
+  20250203.515  <126      (Tsuneo Horie)
+
+
+** TT Crt (UGSS) **
+
+
+20250125.3211 15.69cG      (Masao Funada)
+  20250126.569   152      (Rod Stubbings)
+  20250130.587   134      (Rod Stubbings)
+  20250131.621   134      (Rod Stubbings)
+
+
+** PS Eri (=1SWASPJ022916.91-395901.4, UGZ(IW)+NLAD) **
+
+
+20250122.542   128      (Rod Stubbings)
+  20250124.526   137      (Rod Stubbings)
+  20250126.494   142      (Rod Stubbings)
+  20250129.512   142      (Rod Stubbings)
+  20250130.532   143      (Rod Stubbings)
+  20250131.516   140      (Rod Stubbings)
+
+
+** EX Hya (NLDQ(UG)+E) **
+
+
+20250122.594   132      (Rod Stubbings)
+  20250126.573   130      (Rod Stubbings)
+  20250130.612   132      (Rod Stubbings)
+  20250130.8861 133C      (Masayuki Moriyama)
+  20250131.642   130      (Rod Stubbings)
+
+
+** V392 Hya (=EC10565-2858, UGZ(IW)) **
+
+
+20250122.571   145      (Rod Stubbings)
+  20250125.2653 14.28cG      (Masao Funada)
+  20250126.567   143      (Rod Stubbings)
+  20250130.585   148      (Rod Stubbings)
+  20250131.617   148      (Rod Stubbings)
+
+
+** V745 Hya (=NSV04618, UGSU+E) **
+
+
+20250122.510   143      (Rod Stubbings)
+  20250126.2824 16.36cG      (Masao Funada)
+  20250130.7492 171C      (Masayuki Moriyama)
+  20250202.607  16.50V      (Gary Poyner)
+  20250202.6076 16.50V      (Masao Funada)
+  20250202.6087 16.36Rc      (Masao Funada)
+  20250202.6096 16.64B      (Masao Funada)
+
+
+** VW Hyi (UGSU) **
+
+
+20250122.540   133      (Rod Stubbings)
+  20250123.093  13.41C      (Gary Poyner)
+  20250123.0931 13.35V      (Masao Funada)
+  20250123.0941 13.03Rc      (Masao Funada)
+  20250123.0948 12.54Ic      (Masao Funada)
+  20250124.128  13.11V      (Gary Poyner)
+  20250124.1278 13.19V      (Masao Funada)
+  20250124.1288 12.94Rc      (Masao Funada)
+  20250124.1294 12.54Ic      (Masao Funada)
+  20250124.531   133      (Rod Stubbings)
+  20250125.1606 13.78cG      (Masao Funada)
+  20250125.5307 13.51V      (Masao Funada)
+  20250125.5317 13.27Rc      (Masao Funada)
+  20250125.5324 13.85B      (Masao Funada)
+  20250126.228  13.53V      (Gary Poyner)
+  20250126.2287 13.62V      (Masao Funada)
+  20250126.2296 13.47Rc      (Masao Funada)
+  20250126.2303 13.09Ic      (Masao Funada)
+  20250126.515   134      (Rod Stubbings)
+  20250127.1210 13.59V      (Masao Funada)
+  20250127.1222 13.28Rc      (Masao Funada)
+  20250127.1229 12.74Ic      (Masao Funada)
+  20250128.218  13.63V      (Gary Poyner)
+  20250128.2183 13.76V      (Masao Funada)
+  20250130.2181 13.71V      (Masao Funada)
+  20250130.2196 13.52Rc      (Masao Funada)
+  20250130.2203 13.01Ic      (Masao Funada)
+  20250130.542   137      (Rod Stubbings)
+  20250131.519   134      (Rod Stubbings)
+  20250204.106  13.34V  ### (Gary Poyner)
+
+
+** TU Men (UGSU) **
+
+
+20250130.542   121      (Rod Stubbings)
+  20250131.521   122      (Rod Stubbings)
+  20250131.6488 12.20V      (Masao Funada)
+  20250131.6499 12.12Rc      (Masao Funada)
+  20250131.6508 12.49B      (Masao Funada)
+  20250202.215  12.41V      (Gary Poyner)
+  20250202.2148 12.50V      (Masao Funada)
+  20250202.2159 12.38Rc      (Masao Funada)
+  20250202.2168 12.15Ic      (Masao Funada)
+
+
+** HP Nor (UGZ) **
+
+
+20250130.653   139      (Rod Stubbings)
+  20250131.692   144      (Rod Stubbings)
+
+
+** BI Ori (UGZ) **
+
+
+20250123.426  <122      (Tsuneo Horie)
+  20250126.425  <122      (Tsuneo Horie)
+  20250128.503  <122      (Tsuneo Horie)
+  20250129.422  <122      (Tsuneo Horie)
+  20250129.466   146      (Rod Stubbings)
+  20250130.431  <122      (Tsuneo Horie)
+  20250130.6856 146C      (Masayuki Moriyama)
+  20250131.485   142      (Rod Stubbings)
+  20250202.862   146      (Gary Poyner)
+  20250203.472  <122      (Tsuneo Horie)
+
+
+** CZ Ori (UGSS) **
+
+
+20250123.433  <127      (Tsuneo Horie)
+  20250123.5717 156C      (Masayuki Moriyama)
+  20250123.8868 <140      (Eddy Muyllaert)
+  20250124.544   144      (Rod Stubbings)
+  20250125.031   123      (Gary Poyner)
+  20250125.5341 12.45V      (Masao Funada)
+  20250125.5352 12.46Rc      (Masao Funada)
+  20250125.5359 12.71B      (Masao Funada)
+  20250126.430   124      (Tsuneo Horie)
+  20250126.467   122      (Rod Stubbings)
+  20250127.7785  125      (Eddy Muyllaert)
+  20250128.508   117      (Tsuneo Horie)
+  20250129.428   120      (Tsuneo Horie)
+  20250129.469   122      (Rod Stubbings)
+  20250130.437   120      (Tsuneo Horie)
+  20250130.487   120      (Rod Stubbings)
+  20250130.7036 126C      (Masayuki Moriyama)
+  20250130.7806  122      (Eddy Muyllaert)
+  20250131.038   123      (Gary Poyner)
+  20250131.490   123      (Rod Stubbings)
+  20250131.7785  123      (Eddy Muyllaert)
+  20250201.7882  123      (Eddy Muyllaert)
+  20250202.7896  125      (Eddy Muyllaert)
+  20250202.857   125      (Gary Poyner)
+  20250203.480  <127      (Tsuneo Horie)
+
+
+** V1159 Ori (UGSU(ER)) **
+
+
+20250123.004   138      (Gary Poyner)
+  20250123.110  13.60C      (Gary Poyner)
+  20250123.431  <124      (Tsuneo Horie)
+  20250123.5749 142C      (Masayuki Moriyama)
+  20250123.8924 <140      (Eddy Muyllaert)
+  20250124.118  14.32V      (Gary Poyner)
+  20250125.528  <142      (Takuichiro Onishi)
+  20250125.5374 14.98V      (Masao Funada)
+  20250125.5385 14.64Rc      (Masao Funada)
+  20250125.5394 15.26B      (Masao Funada)
+  20250126.1174 15.01V      (Masao Funada)
+  20250126.1185 14.69Rc      (Masao Funada)
+  20250126.1194 14.62Ic      (Masao Funada)
+  20250126.428  <126      (Tsuneo Horie)
+  20250127.8243 <140      (Eddy Muyllaert)
+  20250128.1007 14.05V      (Masao Funada)
+  20250128.1022 13.91Rc      (Masao Funada)
+  20250128.507  <126      (Tsuneo Horie)
+  20250129.1038 15.13V      (Masao Funada)
+  20250129.1049 14.76Rc      (Masao Funada)
+  20250129.1058 14.48Ic      (Masao Funada)
+  20250129.425  <126      (Tsuneo Horie)
+  20250130.435  <126      (Tsuneo Horie)
+  20250130.475   147      (Rod Stubbings)
+  20250130.7139 151C      (Masayuki Moriyama)
+  20250130.8306 <140      (Eddy Muyllaert)
+  20250131.8167 <140      (Eddy Muyllaert)
+  20250201.8264 <140      (Eddy Muyllaert)
+  20250202.8326 <140      (Eddy Muyllaert)
+  20250202.863   149      (Gary Poyner)
+  20250203.103  14.94V  ### (Gary Poyner)
+  20250203.476  <124      (Tsuneo Horie)
+
+
+** GS Pav (UGZ(IW:)+E) **
+
+
+20250130.456   150      (Rod Stubbings)
+  20250131.508   150      (Rod Stubbings)
+
+
+** V548 Pav (=NSV13572=CRTSJ211213.0-663804, UG) **
+
+
+20250131.508   143      (Rod Stubbings)
+
+
+** TZ Per (UGZ) **
+
+
+20250122.870   137      (Gary Poyner)
+  20250123.396  <133      (Tsuneo Horie)
+  20250123.5222 138C      (Masayuki Moriyama)
+  20250123.8701  138      (Eddy Muyllaert)
+  20250124.387  <133      (Tsuneo Horie)
+  20250125.008   137      (Gary Poyner)
+  20250125.383  <133      (Tsuneo Horie)
+  20250126.382  <133      (Tsuneo Horie)
+  20250127.8035  134      (Eddy Muyllaert)
+  20250128.387  <133      (Tsuneo Horie)
+  20250129.383  <133      (Tsuneo Horie)
+  20250130.387  <128      (Tsuneo Horie)
+  20250130.6521 136C      (Masayuki Moriyama)
+  20250130.8028  133      (Eddy Muyllaert)
+  20250131.009   134      (Gary Poyner)
+  20250131.389  <133      (Tsuneo Horie)
+  20250131.7736  134      (Eddy Muyllaert)
+  20250201.7840  133      (Eddy Muyllaert)
+  20250202.7861  133      (Eddy Muyllaert)
+  20250202.823   132      (Gary Poyner)
+
+
+** FO Per (UGZ) **
+
+
+20250123.6230 169C      (Masayuki Moriyama)
+  20250123.8840 <140      (Eddy Muyllaert)
+  20250127.8118  136      (Eddy Muyllaert)
+  20250130.7318 140C      (Masayuki Moriyama)
+  20250130.8174  137      (Eddy Muyllaert)
+  20250131.008   138      (Gary Poyner)
+  20250131.8014  138      (Eddy Muyllaert)
+  20250201.7903  143      (Eddy Muyllaert)
+  20250202.8208 <144      (Eddy Muyllaert)
+  20250202.829   148      (Gary Poyner)
+
+
+** KT Per (UGZ) **
+
+
+20250122.806   145      (Gary Poyner)
+  20250123.5259 145C      (Masayuki Moriyama)
+  20250123.8729 <143      (Eddy Muyllaert)
+  20250127.8069  142      (Eddy Muyllaert)
+  20250130.6579 130C      (Masayuki Moriyama)
+  20250130.7771  129      (Eddy Muyllaert)
+  20250131.7708  130      (Eddy Muyllaert)
+  20250201.7826  137      (Eddy Muyllaert)
+  20250202.792   144      (Gary Poyner)
+  20250202.8146  143      (Eddy Muyllaert)
+
+
+** QY Per (UGSU) **
+
+
+20250123.538  <175C      (Mitsutaka Hiraga)
+  20250123.6150 <165C      (Masayuki Moriyama)
+  20250123.8785 <141      (Eddy Muyllaert)
+  20250127.8090  140      (Eddy Muyllaert)
+  20250128.895  14.49C      (Gary Poyner)
+  20250128.928  13.89C      (Gary Poyner)
+  20250129.576  144C      (Mitsutaka Hiraga)
+  20250129.847  14.65C      (Gary Poyner)
+  20250129.8487 14.48cG      (Masao Funada)
+  20250129.936  14.54C      (Gary Poyner)
+  20250130.742  14.25      (Pavol A. Dubovsky)
+  20250130.8125  142      (Eddy Muyllaert)
+  20250131.003   142      (Gary Poyner)
+  20250131.7986  142      (Eddy Muyllaert)
+  20250201.7896  143      (Eddy Muyllaert)
+  20250202.8160  144      (Eddy Muyllaert)
+  20250202.826   145      (Gary Poyner)
+  20250203.922  14.90C  ### (Gary Poyner)
+
+
+** V478 Sco (UGZ(IW)) **
+
+
+20250130.703   151      (Rod Stubbings)
+  20250131.714   151      (Rod Stubbings)
+
+
+** V893 Sco (UGSU+E) **
+
+
+20250130.690   137      (Rod Stubbings)
+  20250131.716   137      (Rod Stubbings)
+
+
+** V1434 Tau (=NSV02026, UGSU) **
+
+
+20250122.956   142      (Gary Poyner)
+  20250123.422  <130      (Tsuneo Horie)
+  20250123.5642 139C      (Masayuki Moriyama)
+  20250124.408  <130      (Tsuneo Horie)
+  20250125.029   139      (Gary Poyner)
+  20250125.426  <130      (Tsuneo Horie)
+  20250126.044  13.98C      (Gary Poyner)
+  20250126.419  <130      (Tsuneo Horie)
+  20250127.056  14.10C      (Gary Poyner)
+  20250127.913  14.92C      (Gary Poyner)
+  20250128.423  <130      (Tsuneo Horie)
+  20250129.090  14.18C      (Gary Poyner)
+  20250129.417  <130      (Tsuneo Horie)
+  20250130.180  14.22C      (Gary Poyner)
+  20250130.425  <130      (Tsuneo Horie)
+  20250130.6901 14.59C      (Masayuki Moriyama)
+  20250131.026   148      (Gary Poyner)
+  20250202.853   156      (Gary Poyner)
+  20250203.494  <130      (Tsuneo Horie)
+
+
+** EK TrA (UGSU) **
+
+
+20250124.367  <16.60V      (Gary Poyner)
+  20250124.3672 <168V      (Masao Funada)
+  20250124.3683 15.81Rc      (Masao Funada)
+  20250124.3692 <159Ic      (Masao Funada)
+  20250202.2754 16.22cG      (Masao Funada)
+
+
+** ER UMa (UGSU(ER)) **
+
+
+20250122.842  <131      (Tsuneo Horie)
+  20250123.030   146      (Gary Poyner)
+  20250123.9194 <142      (Eddy Muyllaert)
+  20250125.071   146      (Gary Poyner)
+  20250125.817  <131      (Tsuneo Horie)
+  20250125.8527 142C      (Masayuki Moriyama)
+  20250126.788  <131      (Tsuneo Horie)
+  20250127.8438 <142      (Eddy Muyllaert)
+  20250128.849  <131      (Tsuneo Horie)
+  20250129.797  <131      (Tsuneo Horie)
+  20250130.5483 137C      (Masayuki Moriyama)
+  20250130.803   130      (Tsuneo Horie)
+  20250130.8549  130      (Eddy Muyllaert)
+  20250131.102   129      (Gary Poyner)
+  20250131.8396  127      (Eddy Muyllaert)
+  20250201.8500  129      (Eddy Muyllaert)
+  20250202.8549  130      (Eddy Muyllaert)
+  20250202.949   132      (Gary Poyner)
+
+
+** SY Vol (UGSS) **
+
+
+20250129.517   146      (Rod Stubbings)
+  20250130.512   146      (Rod Stubbings)
+  20250130.5171 14.99V      (Masao Funada)
+  20250130.5182 14.89Rc      (Masao Funada)
+  20250130.5191 15.17B      (Masao Funada)
+  20250131.664   157      (Rod Stubbings)
+  20250202.235  <16.20V      (Gary Poyner)
+  20250202.2358 <167V      (Masao Funada)
+  20250202.2369 16.56Rc      (Masao Funada)
+  20250202.2378 <160Ic      (Masao Funada)
+
+
+** ASASSN-19ax (UGSU) **
+
+
+20250123.8625 <142      (Eddy Muyllaert)
+  20250127.7861  128      (Eddy Muyllaert)
+  20250130.7861  129      (Eddy Muyllaert)
+  20250131.7694  131      (Eddy Muyllaert)
+  20250201.7799  129      (Eddy Muyllaert)
+  20250202.7833  130      (Eddy Muyllaert)
+
+
+** SDSSJ170324.09+320953.2 (UGSS) **
+
+
+20250128.822  <142c      (Tadashi Kojima)
+  20250131.844  132c      (Tadashi Kojima)
+  20250203.792  133c  ### (Tadashi Kojima)
+
+
+** TCPJ04272195-2528038 (HeDN) **
+
+
+20250123.4944 <172C      (Masayuki Moriyama)
+  20250127.512  14.98C      (Hiroshi Itoh)
+  20250127.9208 15.01C      (Gary Poyner)
+  20250127.9208 14.88C      (Masao Funada)
+  20250127.9223 <152cG      (Masao Funada)
+  20250130.5984 15.60C      (Masayuki Moriyama)
+  20250204.487  16.63C  ### (Hiroshi Itoh)
+
