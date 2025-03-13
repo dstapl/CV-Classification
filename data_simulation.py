@@ -314,7 +314,7 @@ def main():
              r=0.42/u.photon, i=0.22/u.photon)
 
     # bandwidths 
-    banddpass= dict(
+    bandpass= dict(
             ha=70*u.Angstrom, b=720*u.Angstrom, v=860*u.Angstrom, 
             r=1330*u.Angstrom, i=1400*u.Angstrom)
 
@@ -324,7 +324,7 @@ def main():
             dark=dict(ha=24.1*u.mag, b=22.7*u.mag, v=21.7*u.mag, r=20.9*u.mag, i=20.0*u.mag),
             )
 
-    filter_set = Filters(banddpass, Q)
+    filter_set = Filters(bandpass, Q)
     filter_set.sky = sky_brightness
 
     ccd = CCD()
@@ -338,7 +338,7 @@ def main():
     # For each sky (so 3 plots overall)
     # Bounds: sky=[dark, grey, bright], m0=[10, sky_mag[sky_type]], dm = [0, 1]
     sky_values = ["dark", "grey", "bright"]
-
+    
     sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
     n_sigma_away = 3
     conf_level = sigma_n[n_sigma_away]/100
@@ -355,16 +355,22 @@ def main():
     for idx, sky_type in enumerate(sky_values, start=0):
         sky_mag = observing_setup.sky(sky_type).value
         m0_step = 0.1
-        m0_values = np.arange(10, sky_mag+m0_step, m0_step)
+        
+        # Bounds for simulation / plot
+        # Ideally values slightly below and above that of the CV object
+        (m0_lower, m0_upper) = (10, sky_mag)
+        m0_values = np.arange(m0_lower, m0_upper+m0_step, m0_step)
+
         dm_step = 0.05
-        dm_values = np.arange(0, 0.61+dm_step, dm_step)
+        (dm_lower, dm_upper) = (0, 0.61)
+        dm_values = np.arange(dm_lower, dm_upper+dm_step, dm_step)
     
         X, Y = np.meshgrid(m0_values, dm_values)
-        points = [(x, y) for x, y in zip(X.ravel(), Y.ravel())]# Not sure if ravel is actually needed
+        points = [(x, y) for x, y in zip(X.ravel(), Y.ravel())] # TODO: Not sure if ravel is actually needed
        
         # Redefine each time with new cv_object
-        def compute(point):
-            (m0, dm) = point
+        def compute_significance(data_point):
+            (m0, dm) = data_point
             cv_object = CV(period = 90*u.min, m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
 
             res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, probability_threshold = probability_threshold)
@@ -373,10 +379,11 @@ def main():
             # TODO: Return n-sigma significance (0 = not significant, 1 = 1-sigma, 2 = 2-sigma, 3 = 3-sigma or better)
             heat = 1 if pvalue <= (1-conf_level) else 0
             return heat
+
         with pathos.multiprocessing.ProcessingPool() as pool:
             Z = list(
                     tqdm(
-                        pool.imap(compute, points),
+                        pool.imap(compute_significance, points),
                         total=len(points)
                     )
                 )
@@ -394,7 +401,7 @@ def main():
         _ = fig.colorbar(sky_heatmap, ax=ax[idx], label="Sigma significance")
         ax[idx].set_xlabel("m0")
         ax[idx].set_ylabel("dm")
-        ax[idx].set_title(f"Pr(NOT FALSE ALARM) = True peak for **{sky_type} SKY**")
+        ax[idx].set_title(f"Pr(NOT FALSE ALARM) = True peak for {sky_type} SKY")
 
     plt.show()
 
