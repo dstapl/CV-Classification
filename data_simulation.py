@@ -247,6 +247,7 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", probabil
 
         mag_series, mag_changes  = cv_object.model(mag_noise = True)(t)
         # max magnitude is sky_magnitude
+        # min magnitude is -inf
         mag_series = np.clip(mag_series, a_min = -100*u.mag, a_max = max_mag)
 
         # Measurement uncertainty (sigma) = dm/snr
@@ -290,11 +291,11 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", probabil
     # Adjusted based on previous analysis of mean SNR only (notebook)
     # For lower exposure times (<60s) n>~1
     # Since SNR ~ Signal = sqrt(N_obs), n = 1 to 2
-    power_n = 1.5 # average value
-    prob_noise_only = 1/(1 + snr**power_n)
-    prob_peak = 1 - 99.7/100 #0.8 # Assume peak is always present
-    prob_noise_only_given_peak = (prob_noise_only / prob_peak) * alpha_list
-
+    # power_n = 1.5 # average value
+    # prob_noise_only = 1/(1 + snr**power_n)
+    # prob_peak = 1 - 99.7/100 #0.8 # Assume peak is always present
+    # prob_noise_only_given_peak = (prob_noise_only / prob_peak) * alpha_list
+    prob_noise_only_given_peak = np.array(alpha_list)
 
 
 
@@ -344,9 +345,9 @@ def main():
     conf_level = sigma_n[n_sigma_away]/100
     conf_level = round(conf_level, 10) # Floating point innacuracies
 
-    probability_threshold = 1e-4
+    probability_threshold = 0.05
 
-    iter_N = 100 # For each innermost loop
+    iter_N = 1000 # For each innermost loop
 
     fig, ax = plt.subplots(3)
     fig.set_dpi(600) # default 100
@@ -358,11 +359,13 @@ def main():
         
         # Bounds for simulation / plot
         # Ideally values slightly below and above that of the CV object
-        (m0_lower, m0_upper) = (10, sky_mag)
+        # (m0_lower, m0_upper) = (10, sky_mag)
+        (m0_lower, m0_upper) = (14, 16)
         m0_values = np.arange(m0_lower, m0_upper+m0_step, m0_step)
 
-        dm_step = 0.05
-        (dm_lower, dm_upper) = (0, 0.61)
+        dm_step = 0.01
+        # (dm_lower, dm_upper) = (0, 0.61)
+        (dm_lower, dm_upper) = (0.14, 0.20)
         dm_values = np.arange(dm_lower, dm_upper+dm_step, dm_step)
     
         X, Y = np.meshgrid(m0_values, dm_values)
@@ -371,7 +374,7 @@ def main():
         # Redefine each time with new cv_object
         def compute_significance(data_point):
             (m0, dm) = data_point
-            cv_object = CV(period = 90*u.min, m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
+            cv_object = CV(period =  0.0586*u.day, m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
 
             res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, probability_threshold = probability_threshold)
             (_,_,pvalue) = res

@@ -1,0 +1,7 @@
+astropy==6.0.0
+matplotlib==3.7.1
+numpy==2.2.3
+pathos==0.3.3
+scipy==1.15.2
+statsmodels==0.14.4
+tqdm==4.67.1
