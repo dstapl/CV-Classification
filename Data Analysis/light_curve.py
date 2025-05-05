@@ -11,6 +11,9 @@ import scipy
 
 import astropy.stats
 
+from matplotlib.ticker import MaxNLocator
+
+
 #def get_values(series):
 #	return list(map(lambda t: t.value, series))
 
@@ -42,33 +45,81 @@ def non_aliased_power_spectrum(ls, sampling_frequency):
     # ax.plot(freq, power, label="after")
     return (freq, power)	
 
-def process_file(file_name, zero_pad_amount = 0):
-    data = pd.read_csv(file_name, delimiter = "\t")
 
+def read_necessary_columns(file_name, target_id = "T1", sep = "\t"):
+    data = pd.read_csv(file_name, sep = sep)
+
+    #print(data.keys())
+    
+    #print(data.keys())
+    
     data = data[[
         "J.D.-2400000",
         "AIRMASS",
         "EXPTIME",
         "FWHM_Mean",
-        "rel_flux_T1",
-        "rel_flux_SNR_T1",
-        "Source-Sky_T1",
-        #"N_Src_Pixels_T1",
-        "Source_Error_T1",
-        "Source_SNR_T1",
-        "Peak_T1",
-        "Mean_T1",
-        "Sky/Pixel_T1",
-        #"N_Sky_Pixels_T1",
-        "FWHM_T1",
-        "Width_T1",
-        "X-Width_T1",
-        "Y-Width_T1",
-        "Angle_T1",
-        "Roundness_T1"
+        "rel_flux_"+target_id,
+        "rel_flux_err_"+target_id,
+        "rel_flux_SNR_"+target_id,
+        "Source-Sky_"+target_id,
+        #"N_Src_Pixels_"+target_id,
+        "Source_Error_"+target_id,
+        "Source_SNR_"+target_id,
+        # "Peak_"+target_id,
+        "Mean_"+target_id,
+        "Sky/Pixel_"+target_id,
+        #"N_Sky_Pixels_"+target_id,
+        "FWHM_"+target_id,
+        "Width_"+target_id,
+        "X-Width_"+target_id,
+        "Y-Width_"+target_id,
+        "Angle_"+target_id,
+        "Roundness_"+target_id
         ]]
 
+    #print(f"Accessed keys for {file_name}")
 
+    return data
+
+
+def process_file(file_name, zero_pad_amount = 0):
+    file_errors = []
+    target_id_list = ["T1", "C1"]
+    target_id = ""
+
+    found_separator = False
+
+    data = []
+    for target in ["T1", "C1"]:
+        for sep in ["\t", ",", "\t\t"]:
+            try: 
+                data = read_necessary_columns(file_name, target_id = target,
+                                              sep = "\t")
+                target_id = target
+                found_separator = True
+    #            print(f"Separator was {repr(sep)}.")
+                break
+            except Exception as e:
+                # try:
+                #     data = read_necessary_columns(file_name, sep = ",")
+                #     target_id = target
+                #     break
+                # except Exception as e2:
+                #     file_errors.append(e2)
+                file_errors.append(e)
+
+        if found_separator:
+            break
+    else:
+        if target_id == "":
+            raise Exception(f"Target id not in list: {target_id_list}")
+        else:
+            assert len(data) != 0, "File error but there was still data"
+            # No `continue` statements were procesed so
+            # file is unexpected / malformed
+            raise Exception(file_errors)
+        
+    #exit()
     time = data["J.D.-2400000"].to_numpy()
     mean_interval = np.median(np.diff(time))
     null = [time[0] - n*mean_interval for n in range(1, zero_pad_amount + 1)]
@@ -84,10 +135,10 @@ def process_file(file_name, zero_pad_amount = 0):
     #ts = ts.fold(period = 90*u.s)
 
 
-    flux_names = ["Mean_T1", "Source_Error_T1"]
+    flux_names = ["Mean_"+target_id, "Source_Error_"+target_id]
     fluxes = [ts[name] for name in flux_names]
 
-    flux_name = "Mean_T1"
+    flux_name = "Mean_"+target_id
 
     ls = timeseries.LombScargle(ts["time"], ts[flux_name])
 
@@ -119,7 +170,7 @@ def process_file(file_name, zero_pad_amount = 0):
     print(f"{freq.max() = }")
     power = power[:freq_idx]
 
-    return [ts, [freq, power], ls]
+    return [ts, [freq, power], ls, target_id]
 
 import astropy.timeseries.periodograms.lombscargle._statistics as _lombstats
 def custom_false_alarm_probability(
@@ -274,68 +325,232 @@ def calculate_probability(snr, FAP_list, p_thresh = 0.05, conf_level = 99.7/100)
 
     return (pvalue, pvalue_dist)
 
-def main(file_name_list, zero_padding = 0):
-    print(file_name_list)
-    results_list = [process_file(file, zero_padding) for file in file_name_list]
 
-    results_list = results_list
+def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", columns = "all", ax_list = [], bins = "blocks", xticks = 5, yticks = 5):
+    """
+    Rows accepts either "all" to plot all results
+    or part of a filename associated with measurement files.
+
+    Column accepts the following:
+    `["all", "signal", "periodogram", "false-alarm", "pvalue"]`
+
+    Bins is number of histogram bins, or method such as Bayesian blocks (`"blocks"`)
+    
+    xticks is number of ticks to display on x-axis
+    yticks is number of ticks to display on y-axis
+
+    NOTE: `ax_list` assumes all axes come from the same figure
+    """
+    assert type(columns[0]) == str, f"Column or first element of columns is not str: {columns = }"
+    # Python short circuits boolean operators
+
+    assert type(columns[0]) == str, f"Column or first element of columns is not str: {columns = }"
+    #assert (type(rows) == str) or len(list(filter(lambda x: type(x) != int, rows))) == 0, f"Rows is not a valid argument: {rows = }"
 
 
-    time_series_list = [x[0] for x in results_list]
-    periodogram_list = [x[1] for x in results_list]
-    lomb_scargle_list = [x[2] for x in results_list]
+    n_plots = len(results_list)
+    assert n_plots != 0, "Results list is empty for plotting"
 
-    n_periodograms = len(periodogram_list)
+    if type(rows) == str:
+        assert rows == "all", f"Only `str` value for rows is `all`. Did you mean a list? {rows  = }"
+    elif type(rows) == list:
+        all_text = "\t".join(rows)
+        for row in rows:
+            assert row in all_text, f"Row value `{row}` not found in processed files: {file_name_list = }"
 
-    # Rel_flux vs time, periodogram, FAP, pvalue
-    fig, ax = plt.subplots(nrows = n_periodograms, ncols = 4)
+
+    allowed_columns = ["signal", "periodogram", "false-alarm", "pvalue"]
+    if type(columns) == str:
+        assert columns == "all", f"Only `str` value for column is `all`. Did you mean a list? {columns = }"
+    elif type(columns) == list:
+        for column in columns:
+            assert column in allowed_columns, f"Column value `{column}` is not allowed. The options for column are {allowed_columns}"
+
+    if type(rows) == list:
+        rows = list(filter(lambda s: s != "all", rows))
+        if len(rows) == 0:
+            return # Nothing to plot
+
+    if type(columns) == list:
+        columns  = list(filter(lambda s: s != "all", columns))
+        if len(columns) == 0:
+            return # Nothing to plot
+
+
+
+
+
+    if rows == "all":
+        rows = list(range(n_plots))
+    if columns == "all":
+        columns = ["signal", "periodogram", "false-alarm", "pvalue"]
+
+
+    n_rows, n_column = len(rows), len(columns)
+    print(f"{n_rows = }, {n_column = }")
+    if len(ax_list) == 0:
+        fig, ax_list = plt.subplots(nrows = n_rows, ncols = n_column,
+                           figsize = (16, 8))
+    else:
+        fig = plt.gcf()
+
 
     # Iterating over multiple axes so needs to be a list
-    if n_periodograms == 1:
-        ax = [ax]
-    
-    for (idx, axis) in enumerate(ax, start = 0):
-        ts = time_series_list[idx]
-        (freq, power) = periodogram_list[idx]
-        ls = lomb_scargle_list[idx]
+    if n_rows == 1:
+        ax_list = [ax_list]
 
+
+    def process_false_alarm(ls, power):
         # Analysis of highest peak (Hopefully that associated with the true signal)
         max_power = power.max()
 
         print(f"Default implementation {ls.false_alarm_probability(power.max(), method = 'bootstrap') = }")
+
         FAP_list = custom_false_alarm_probability(ls, max_power, method = "bootstrap")
 
-        #"rel_flux_SNR_T1",
-        #"Source_SNR_T1",
-        snr = np.median(ts["Source_SNR_T1"])
+        #print(f"{FAP_list.mean() = }; {pvalue = }; {pvalue_dist.mean() = }")
 
-        pvalue, pvalue_dist = calculate_probability(snr, FAP_list, p_thresh = 0.05, conf_level = 99.7/100)
+        return FAP_list
 
 
-        hist, bin_edges = astropy.stats.histogram(FAP_list, bins = "blocks")
-        axis[2].stairs(hist, bin_edges)
-        axis[2].set_title("False Alarm Probability")
+    for (row_idx, axis) in enumerate(ax_list, start = 0):
+        row_name = rows[row_idx]
+        if not (row_name in rows):
+            print(f"skipping {row_name = }")
+            continue
 
-        hist, bin_edges = astropy.stats.histogram(pvalue_dist, bins = "blocks")
-        axis[3].stairs(hist, bin_edges)
-        axis[3].set_title("Probability that Peak is Produced by Noise")
+        # Single column idx will always be 0
+        if n_column == 1:
+            axis = [axis]
+        ts, (freq,power), ls, target_id = results_list[row_idx]
 
 
-        print(f"{FAP_list.mean() = }; {pvalue = }; {pvalue_dist.mean() = }")
+        cache = {column_name: None for column_name in allowed_columns}
 
-        # NOTE: Bayesian is *strictly* only for a *pure* sine wave
-        power = np.exp(power)
+        # TODO: CACHE RESULTS!
+        for (column_idx, column) in enumerate(columns, start = 0):
+            if column == "signal":
+                if cache[column] is None:
+                    time = get_time_values(ts["time"], time_format = "unix")
+                    flux = ts["rel_flux_"+target_id]
+                    err_flux = ts["rel_flux_err_"+target_id]
 
-        axis[1].plot(freq, power)
-        axis[1].set_title("Lomb-Scargle Periodogram")
+                    cache[column] = (time, flux, err_flux)
+                else:
+                    time, flux, err_flux = cache[column]
 
-        time = get_time_values(ts["time"], time_format = "iso")
-        flux = ts["rel_flux_T1"]
+                axis[column_idx].errorbar(time, flux, yerr = err_flux, fmt = "x")
 
-        axis[0].plot(time, flux)
+            elif column == "periodogram":
+                BAYESIAN = True
+                if cache[column] is None:
+                    if BAYESIAN:
+                        power = np.exp(power)
+                    else:
+                        power = power
+                    cache[column] = (freq, power)
+                else:
+                    freq, power = cache[column]
 
-        filename = os.path.basename(file_name_list[idx])
-        axis[0].set_title(filename)
+                # # NOTE: Bayesian is *strictly* only for a *pure* sine wave
+                # power = np.exp(power)
+
+                axis[column_idx].plot(freq, power)
+                axis[column_idx].set_title("Lomb-Scargle Periodogram")
+
+            elif column == "false-alarm":
+                if cache[column] is None:
+                    FAP_list = process_false_alarm(ls, power)
+                    cache[column] = FAP_list
+                else:
+                    FAP_list = cache[column]
+
+                print(f"{FAP_list.mean() = }")
+
+                hist, bin_edges = astropy.stats.histogram(FAP_list, bins = bins)
+                axis[column_idx].stairs(hist, bin_edges)
+                axis[column_idx].set_title("False Alarm Probability")
+
+            elif column == "pvalue":
+                # Need to compute pvalue for false-alarm so combine both
+
+                if cache[column] is None:
+                    if cache["false-alarm"] is None:
+                        FAP_list = process_false_alarm(ls, power)
+                        cache["false-alarm"] = FAP_list
+                    else:
+                        FAP_list = cache["false-alarm"]
+
+                    #"rel_flux_SNR_T1",
+                    #"Source_SNR_T1",
+                    snr = np.median(ts["Source_SNR_"+target_id])
+
+                    pvalue, pvalue_dist = calculate_probability(snr, FAP_list, p_thresh = 0.05, conf_level = 99.7/100)
+
+                    cache[column] = (pvalue, pvalue_dist, snr)
+                else:
+                    pvalue, pvalue_dist, snr = cache[column]
+
+                print(f"{pvalue = }; {pvalue_dist.mean() = }")
+
+
+                hist, bin_edges = astropy.stats.histogram(pvalue_dist, bins = bins)
+                axis[column_idx].stairs(hist, bin_edges)
+                axis[column_idx].set_title("Probability that Peak is Produced by Noise")
+
+
+            # Set title of plot
+            if column_idx == 0:
+                curr_title = axis[column_idx].get_title()
+                filename = os.path.basename(file_name_list[row_idx])
+                axis[column_idx].set_title(filename + "\n" + curr_title)
+
+        for subplot in axis:
+            subplot.xaxis.set_major_locator(MaxNLocator(xticks))
+            subplot.yaxis.set_major_locator(MaxNLocator(yticks))
+        #     plt.setp(subplot.get_xticklabels(), rotation=30, ha='right')
+
+    fig.tight_layout()
+
+
+def main(file_name_list, zero_padding = 0):
+    print(f"{file_name_list = }")
+
+    results_list = []
+
+    for file in file_name_list:
+        try:
+            result = process_file(file, zero_padding)
+        except Exception as e:
+            print(f"ERROR in {file = }. SKIPPING\n\n", e, "\n\n")
+            continue
+        results_list.append(result)
+
+    # n_periodograms = len(results_list)
+    #
+    # # Rel_flux vs time, periodogram, FAP, pvalue
+    # fig, ax_list = plt.subplots(nrows = n_periodograms, ncols = 4,
+    #                        figsize = (18, 8))
+    #
+    # # Iterating over multiple axes so needs to be a list
+    # if n_periodograms == 1:
+    #     ax_list = [ax_list]
+    #
+
+    #rows = "all"
+    #columns = "all"
+    rows = ["18bfs", "19abe"]
+    columns = ["signal", "periodogram", "pvalue"]
+    n_xticks = 5
+    n_yticks = 5
+    bins = "blocks" # 15
+    plot_rows_columns(file_name_list, results_list,
+                      rows = rows,
+                      columns = columns,
+                      xticks = n_xticks,
+                      yticks = n_yticks,
+                      bins = bins
+    )
 
     plt.show()
 
@@ -350,8 +565,7 @@ if __name__ == "__main__":
         files = list(filter(lambda s: not ("Coding" in s), files))
 
     assert files != [], "No measurement files found"
-#    print(list(filter(lambda s: "abe" in s, files)))
-    # exit()
+
     zero_padding = 0
 
     main(files, zero_padding = int(zero_padding))
