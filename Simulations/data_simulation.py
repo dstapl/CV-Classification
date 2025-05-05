@@ -5,6 +5,9 @@
 # description: Want to find lowest dm that can be detected at 3\sigma significance level.
 # ---
 
+# 2025-05-05 URGENT TODO: Use re-run this script using the same process as in Data Analysis/light_curve.py
+
+
 ## Imports
 import numpy as np
 import matplotlib.pyplot as plt
