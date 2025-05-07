@@ -13,7 +13,6 @@ import astropy.stats
 
 from matplotlib.ticker import MaxNLocator
 
-
 #def get_values(series):
 #	return list(map(lambda t: t.value, series))
 
@@ -25,13 +24,25 @@ def get_time_values(ts, time_format):
     return list(map(lambda t: t.to_value(time_format), ts))
 
 
-def make_power_spectrum(ls, max_freq):
-    return ls.autopower(method = "fast", maximum_frequency = max_freq) # Nyquist factor (at least 2)
+def make_power_spectrum(ls, max_freq, samples_per_peak = 5):
+    return ls.autopower(method = "fast", maximum_frequency = max_freq, # Nyquist factor (at least 2)
+                        samples_per_peak = samples_per_peak)
 
-def non_aliased_power_spectrum(ls, sampling_frequency):
+def non_aliased_power_spectrum(ls, sampling_frequency = None, factor = 5, max_freq = None,
+                               samples_per_peak = 5):
+    """If max_freq is set, this function will take
+    the minimum of `factor * sampling_frequency` and `max_freq`
+    """
+    if max_freq is None:
+        max_freq = 1000/u.day
+
+    if sampling_frequency is None:
+        (freq, power) = make_power_spectrum(ls, max_freq, samples_per_peak)
+        return (freq, power)
+
     nyquist_frequency = 0.5*sampling_frequency 
-    max_freq = 5 * nyquist_frequency
-    (freq, power) = make_power_spectrum(ls, max_freq)
+    max_freq = min([factor * nyquist_frequency, max_freq])
+    (freq, power) = make_power_spectrum(ls, max_freq, samples_per_peak)
 
     # Cut off below the sampling frequency to do with aliasing
 
@@ -50,9 +61,9 @@ def read_necessary_columns(file_name, target_id = "T1", sep = "\t"):
     data = pd.read_csv(file_name, sep = sep)
 
     #print(data.keys())
-    
+
     #print(data.keys())
-    
+
     data = data[[
         "J.D.-2400000",
         "AIRMASS",
@@ -82,7 +93,57 @@ def read_necessary_columns(file_name, target_id = "T1", sep = "\t"):
     return data
 
 
-def process_file(file_name, zero_pad_amount = 0):
+def remove_max_power_freq(ls, freq, power, n = 1, n_bootstraps = 1000, double_bootstrap = False):
+    """MODIFIES LOMBSCARGLE INSTANCE
+
+    Remove the frequency associated with the nth current highest powers
+    """
+    if n < 1:
+        return ls, (freq, power), []
+
+    removed_values = [] # (freq, power)
+    for i in range(n):
+        max_power = power.max()
+
+        power_freq = freq[power == max_power].mean()
+
+        (data_fap_value, lower_conf, upper_conf) = process_false_alarm(ls, power, n_bootstraps = n_bootstraps, double_bootstrap = double_bootstrap)
+
+        if 0 < lower_conf:
+            print(f"Halted at {i = }. False-alarm was too high: {data_fap_value} +/- {np.mean([lower_conf, upper_conf])}")
+            break
+
+        ls = remove_freq_signal(ls, power_freq)
+        removed_values.append((power_freq, max_power, (data_fap_value, lower_conf, upper_conf)))
+
+        freq, power = non_aliased_power_spectrum(ls, max_freq = freq.max())
+    return ls, (freq, power), removed_values
+
+
+def remove_freq_signal(ls, freq):
+    """MODIFIES LOMBSCARGLE INSTANCE"""
+    # Make sure to not modify original values yet
+    #time = np.array(ls.t)
+    time = ls.t
+    #print(time)
+    flux = np.array(ls.y)
+    #errors = np.array(ls.dy)
+
+    # try:
+    #     print(f"{freq = }")
+    #     freq = freq.tolist()
+    # except:
+    #     pass
+
+    #print(f"{freq = }; {freq.ndim = }")
+    sampling_model = ls.model(time, frequency = freq)
+
+
+    ls.y = flux - sampling_model
+    #ls = timeseries.LombScargle(time, ls.y)
+    return ls # Not needed but just for sanity
+
+def process_file(file_name, samples_per_peak = 5):
     file_errors = []
     target_id_list = ["T1", "C1"]
     target_id = ""
@@ -118,18 +179,15 @@ def process_file(file_name, zero_pad_amount = 0):
             # No `continue` statements were procesed so
             # file is unexpected / malformed
             raise Exception(file_errors)
-        
+
     #exit()
     time = data["J.D.-2400000"].to_numpy()
-    mean_interval = np.median(np.diff(time))
-    null = [time[0] - n*mean_interval for n in range(1, zero_pad_amount + 1)]
+    #mean_interval = np.median(np.diff(time))
 
-    time = np.concatenate([null, time])
     time = astro_time.Time(time, format = "mjd")
 
-    zero_data = np.zeros(zero_pad_amount)
-    print(len(null), len(zero_data))
-    ts_data = {name: np.concatenate([zero_data, data[name]]) for name in data.keys()}
+    #ts_data = {name: np.concatenate([zero_data, data[name]]) for name in data.keys()}
+    ts_data = {name: data[name] for name in data.keys()}
     ts = timeseries.TimeSeries(time = time, data = ts_data)
 
     #ts = ts.fold(period = 90*u.s)
@@ -140,23 +198,25 @@ def process_file(file_name, zero_pad_amount = 0):
 
     flux_name = "Mean_"+target_id
 
-    ls = timeseries.LombScargle(ts["time"], ts[flux_name])
+    err_flux = ts["rel_flux_err_"+target_id]
+    ls = timeseries.LombScargle(ts["time"], ts[flux_name],
+                                dy = err_flux)
 
     # Want to remove frequency associated with the sampling frequency
 
+
+
     sampling_delta = abs(ts["time"][1] - ts["time"][0])
-    print(f"{sampling_delta = }")
+    #print(f"{sampling_delta = }")
     sampling_frequency = 1/sampling_delta
-    sampling_model = ls.model(ts["time"], frequency = sampling_frequency)
 
-
-    ts[flux_name] = ts[flux_name] - sampling_model
-    ls = timeseries.LombScargle(ts["time"], ts[flux_name])
+    ls = remove_freq_signal(ls, 1/sampling_delta)
 
 
 
 
-    (freq, power) = non_aliased_power_spectrum(ls, sampling_frequency)
+    (freq, power) = non_aliased_power_spectrum(ls, sampling_frequency,
+                                               samples_per_peak = samples_per_peak)
 
 
     nyquist_frequency = 0.5*sampling_frequency 
@@ -165,14 +225,67 @@ def process_file(file_name, zero_pad_amount = 0):
 
     freq_idx = np.abs(freq - nyquist_frequency).argmin() # Property of periodogram is that it is symmetric
 
-    print(f"{freq_idx = }")
+    #print(f"{freq_idx = }")
     freq = freq[:freq_idx]
-    print(f"{freq.max() = }")
+    #print(f"{freq.max() = }")
     power = power[:freq_idx]
 
     return [ts, [freq, power], ls, target_id]
 
-import astropy.timeseries.periodograms.lombscargle._statistics as _lombstats
+
+# MODIFIED FROM https://github.com/astropy/astropy/blob/main/astropy/timeseries/periodograms/lombscargle/_statistics.py
+def _bootstrap_max(t, y, dy, fmax, normalization, random_seed, n_bootstraps=1000, double_bootstrap = False):
+    """Generate a sequence of bootstrap estimates of the max."""
+    #from .core import LombScargle
+
+    rng = np.random.default_rng(random_seed)
+    power_max = []
+
+    if double_bootstrap:
+        std_err = []
+
+    fap_inner = []
+
+    for _ in range(n_bootstraps):
+        s = rng.integers(0, len(y), len(y))  # sample with replacement
+        ls_boot = timeseries.LombScargle(
+                t, y[s], dy if dy is None else dy[s], normalization=normalization
+                )
+        freq, power = ls_boot.autopower(maximum_frequency=fmax)
+
+        sample_max_power = power.max()
+
+        if double_bootstrap:
+            inner_boot = []
+            for _ in range(n_bootstraps):
+                k = rng.integers(0, len(power), len(power))
+                power_boot = power[k]
+
+                inner_boot.append(power_boot.max())
+            inner_boot = u.Quantity(inner_boot)
+            inner_boot.sort()
+
+
+            fap = 1 - np.searchsorted(inner_boot, sample_max_power) / len(inner_boot) # Fraction of values that pass
+
+            fap_inner.append(fap)
+            std_err.append(np.std(inner_boot))
+
+        power_max.append(power.max())
+
+    power_max = u.Quantity(power_max)
+    power_max.sort()
+
+    if double_bootstrap:
+        std_err = u.Quantity(std_err)
+        std_err.sort()
+
+    if double_bootstrap == False:
+        return power_max
+    else:
+        return (power_max, (std_err, fap_inner))
+
+# MODIFIED FROM ASTROPY SOURCE TODO: LINK
 def custom_false_alarm_probability(
         self,
         power,
@@ -181,7 +294,8 @@ def custom_false_alarm_probability(
         nyquist_factor=5,
         minimum_frequency=None,
         maximum_frequency=None,
-        method_kwds=None,
+        n_bootstraps = 1000,
+        double_bootstrap = False,
         ):
     """False alarm probability of periodogram maxima under the null hypothesis.
 
@@ -252,29 +366,105 @@ def custom_false_alarm_probability(
             maximum_frequency=maximum_frequency,
             return_freq_limits=True,
             )
-    return fap_bootstrap(
-            power,
-            fmax=fmax,
-            t=self._trel,
-            y=self.y,
-            dy=self.dy,
-            normalization=self.normalization,
-            )
+    return fap_bootstrap(self, 
+                         power,
+                         fmax=fmax,
+                         t=self._trel,
+                         y=self.y,
+                         dy=self.dy,
+                         normalization=self.normalization,
+                         n_bootstraps=n_bootstraps,
+                         double_bootstrap = double_bootstrap,
+                         )
 
-def fap_bootstrap(
-        Z, fmax, t, y, dy, normalization="standard", n_bootstraps=1000, random_seed=None
-        ):
+def fap_bootstrap(ls,
+                  Z, fmax, t, y, dy, normalization="standard", n_bootstraps=1000, random_seed=None,
+
+                  significance = 0.05,
+                  double_bootstrap = False,
+                  ):
     # """Copied from https://github.com/astropy/astropy/blob/main/astropy/timeseries/periodograms/lombscargle/_statistics.py
     #   To return the entire list (distribution) of pvalues
     #   """
     """Bootstrap estimate of the false alarm probability."""
-    pmax = _lombstats._bootstrap_max(t, y, dy, fmax, normalization, random_seed, n_bootstraps)
+
+    print(double_bootstrap)
+    res =  _bootstrap_max(t, y, dy, fmax, normalization, random_seed, n_bootstraps, double_bootstrap = double_bootstrap)
+    if double_bootstrap:
+        pmax, (std_err_dist, fap_inner_dist) = res
+    else:
+        pmax = res
 
     # pmax is power
     # np.searchsorted finds index in array to place the power Z
     # so the fraction is the number of power values in pmax which pass(TODO?) the bootstrap
     # so to get a distribution of pmax values, taking only the values less than the power
-    return pmax[pmax <= Z] / len(pmax)#1 - np.searchsorted(pmax, Z) / len(pmax)
+    # TODO: This is incorrect
+    bootstrap_fap_value = 1 - np.searchsorted(pmax, Z) / len(pmax) # Fraction of values that pass
+
+    print(f"{bootstrap_fap_value = }")
+    if bootstrap_fap_value == 0:
+        lower_conf, upper_conf, std_err, data_fap_value = 0,0,0, 0
+    else:
+        # Find confidence intervals for 95% of data (2.5% and 97.5%)
+
+        n = len(y)
+
+        if double_bootstrap:
+            SE_boot = std_err_dist
+        else:
+            SE_boot = np.std(pmax)
+
+
+        if n > 1:
+            narrow_factor = np.sqrt(1 - 1/n) # sqrt( (n - 1)/n )
+        else:
+            # n = 1 is "infinite" narrowness which is indeterminate
+            narrow_factor = 1
+
+        # Correct for narrow bias ( Only really relevant for small n ) 
+        SE_boot = SE_boot / narrow_factor
+
+        # Input Z is power.max()
+        data_fap_value = ls.false_alarm_probability(Z, method = "bootstrap", 
+                                               method_kwds = {"n_bootstraps": n_bootstraps})
+
+        #bias = fap_value - data_mean
+
+        if double_bootstrap:
+            t_dist_boot = (fap_inner_dist - data_fap_value) / SE_boot
+            t_dist_boot.sort()
+            #print(f"{t_dist_boot = }")
+        else:
+            t_dist_boot = (bootstrap_fap_value - data_fap_value) / SE_boot
+
+        # upper_q = 1 - np.searchsorted(t_dist_boot, lower_power)/ len(pmax)
+        # lower_q = 1 - np.searchsorted(t_dist_boot, upper_power)/ len(pmax)
+        t_lower = np.percentile(t_dist_boot, significance / 2)
+        t_upper = np.percentile(t_dist_boot, 1 - significance / 2)
+
+
+        #print(f"{t_lower = }; {t_upper = }")
+        # If one or both are negative
+
+        # mean - q_1-alpha/2 * SE, mean + q_alpha/2 * SE
+        # mean - upper *SE, mean + lower *SE
+        if double_bootstrap:
+            SE_boot = SE_boot.mean()
+
+        lower_conf = data_fap_value - t_upper * SE_boot
+        upper_conf = data_fap_value + t_lower * SE_boot
+
+
+        if upper_conf < lower_conf:
+            lower_conf, upper_conf = upper_conf, lower_conf
+
+    print(bootstrap_fap_value, data_fap_value, lower_conf, upper_conf)
+
+    if not double_bootstrap:
+        fap_inner_dist = []
+
+    return (data_fap_value, lower_conf, upper_conf), (bootstrap_fap_value, fap_inner_dist, pmax)
 
 def calculate_probability(snr, FAP_list, p_thresh = 0.05, conf_level = 99.7/100):
     """
@@ -311,22 +501,41 @@ def calculate_probability(snr, FAP_list, p_thresh = 0.05, conf_level = 99.7/100)
 
     prob_noise_only_given_peak = 1/(1 + bayes_factor * prior_factor)
 
-    pvalue_dist = prob_noise_only_given_peak
+    pvalue_list = prob_noise_only_given_peak
 
-    assert np.sum(pvalue_dist > 1) == 0, "Invalid adjusted probabilities: greater than 1"
+    assert np.sum(pvalue_list > 1) == 0, "Invalid adjusted probabilities: greater than 1"
 
     probability_threshold = p_thresh
 
 
     # p < p_thresh <==> p - p_thresh < 0
-    test_result = scipy.stats.wilcoxon(pvalue_dist - probability_threshold, alternative = "less",
+    test_result = scipy.stats.wilcoxon(pvalue_list - probability_threshold, alternative = "less",
                                        correction = False, nan_policy = "omit")
     pvalue = test_result.pvalue
 
-    return (pvalue, pvalue_dist)
+    return (pvalue, pvalue_list)
 
+def process_false_alarm(ls, power, n_bootstraps = 1000, double_bootstrap = False):
+    # Analysis of highest peak (Hopefully that associated with the true signal)
+    max_power = power.max()
 
-def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", columns = "all", ax_list = [], bins = "blocks", xticks = 5, yticks = 5):
+    print(f"Default implementation {ls.false_alarm_probability(power.max(), method = 'bootstrap') = }")
+
+    (data_fap_value, lower_conf, upper_conf), _  = custom_false_alarm_probability(ls, max_power, method = "bootstrap", n_bootstraps = n_bootstraps, double_bootstrap = double_bootstrap)
+     
+
+    return (data_fap_value, lower_conf, upper_conf)
+
+def plot_rows_columns(file_name_list: list[str],
+                      results_list,
+                      rows = "all",
+                      columns = "all",
+                      ax_list = [],
+                      bins = "blocks",
+                      xticks = 5,
+                      yticks = 5,
+                      n_bootstraps = 1000,
+                      double_bootstrap = False):
     """
     Rows accepts either "all" to plot all results
     or part of a filename associated with measurement files.
@@ -335,7 +544,7 @@ def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", col
     `["all", "signal", "periodogram", "false-alarm", "pvalue"]`
 
     Bins is number of histogram bins, or method such as Bayesian blocks (`"blocks"`)
-    
+
     xticks is number of ticks to display on x-axis
     yticks is number of ticks to display on y-axis
 
@@ -390,7 +599,7 @@ def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", col
     print(f"{n_rows = }, {n_column = }")
     if len(ax_list) == 0:
         fig, ax_list = plt.subplots(nrows = n_rows, ncols = n_column,
-                           figsize = (16, 8))
+                                    figsize = (16, 8))
     else:
         fig = plt.gcf()
 
@@ -400,18 +609,8 @@ def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", col
         ax_list = [ax_list]
 
 
-    def process_false_alarm(ls, power):
-        # Analysis of highest peak (Hopefully that associated with the true signal)
-        max_power = power.max()
 
-        print(f"Default implementation {ls.false_alarm_probability(power.max(), method = 'bootstrap') = }")
-
-        FAP_list = custom_false_alarm_probability(ls, max_power, method = "bootstrap")
-
-        #print(f"{FAP_list.mean() = }; {pvalue = }; {pvalue_dist.mean() = }")
-
-        return FAP_list
-
+    long_cache = {obj_name: None for obj_name in rows}
 
     for (row_idx, axis) in enumerate(ax_list, start = 0):
         row_name = rows[row_idx]
@@ -431,9 +630,13 @@ def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", col
         for (column_idx, column) in enumerate(columns, start = 0):
             if column == "signal":
                 if cache[column] is None:
-                    time = get_time_values(ts["time"], time_format = "unix")
+                    time = get_time_values(ls.t, time_format = "unix")
                     flux = ts["rel_flux_"+target_id]
-                    err_flux = ts["rel_flux_err_"+target_id]
+                    if True:#if (ls.dy is None) or (len(ls.dy) == 0):
+                        err_flux = ts["rel_flux_err_"+target_id]
+                    else:
+                        err_flux = ls.dy
+                        print(f"{err_flux = }")
 
                     cache[column] = (time, flux, err_flux)
                 else:
@@ -454,51 +657,77 @@ def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", col
 
                 # # NOTE: Bayesian is *strictly* only for a *pure* sine wave
                 # power = np.exp(power)
+                USE_PERIOD = True
 
-                axis[column_idx].plot(freq, power)
+                if USE_PERIOD:
+                    period = 1/freq
+                    axis[column_idx].plot(period, power)
+
+                    axis[column_idx].set_xscale("log")
+                    # axis[column_idx].set_yscale("log")
+
+                    axis[column_idx].set_xlabel("Period [days] (log scale)")
+                else:
+                    axis[column_idx].plot(freq, power)
+
+                    axis[column_idx].set_xscale("log")
+                    # axis[column_idx].set_yscale("log")
+
+                    axis[column_idx].set_xlabel("Frequency [1/day] (log scale)")
+
                 axis[column_idx].set_title("Lomb-Scargle Periodogram")
 
-            elif column == "false-alarm":
-                if cache[column] is None:
-                    FAP_list = process_false_alarm(ls, power)
-                    cache[column] = FAP_list
-                else:
-                    FAP_list = cache[column]
-
-                print(f"{FAP_list.mean() = }")
-
-                hist, bin_edges = astropy.stats.histogram(FAP_list, bins = bins)
-                axis[column_idx].stairs(hist, bin_edges)
-                axis[column_idx].set_title("False Alarm Probability")
-
-            elif column == "pvalue":
-                # Need to compute pvalue for false-alarm so combine both
-
-                if cache[column] is None:
-                    if cache["false-alarm"] is None:
-                        FAP_list = process_false_alarm(ls, power)
-                        cache["false-alarm"] = FAP_list
-                    else:
-                        FAP_list = cache["false-alarm"]
-
-                    #"rel_flux_SNR_T1",
-                    #"Source_SNR_T1",
-                    snr = np.median(ts["Source_SNR_"+target_id])
-
-                    pvalue, pvalue_dist = calculate_probability(snr, FAP_list, p_thresh = 0.05, conf_level = 99.7/100)
-
-                    cache[column] = (pvalue, pvalue_dist, snr)
-                else:
-                    pvalue, pvalue_dist, snr = cache[column]
-
-                print(f"{pvalue = }; {pvalue_dist.mean() = }")
-
-
-                hist, bin_edges = astropy.stats.histogram(pvalue_dist, bins = bins)
-                axis[column_idx].stairs(hist, bin_edges)
-                axis[column_idx].set_title("Probability that Peak is Produced by Noise")
-
-
+            # elif column == "false-alarm":
+            #     if cache[column] is None:
+            #         (data_fap_value, lower_conf, upper_conf) = process_false_alarm(ls, power, n_bootstraps=n_bootstraps, double_bootstrap = double_bootstrap)
+            #         cache[column] = FAP_list
+            #     else:
+            #         FAP_list = cache[column]
+            #
+            #     if len(FAP_list) != 0:
+            #         print(f"{FAP_list.mean() = }")
+            #         hist, bin_edges = astropy.stats.histogram(FAP_list, bins = bins)
+            #         axis[column_idx].stairs(hist, bin_edges)
+            #     else:
+            #         print("WARNING false-alarm list is EMPTY")
+            #
+            #     axis[column_idx].set_title("False Alarm Probability")
+            #
+            # elif column == "pvalue":
+            #     # Need to compute pvalue for false-alarm so combine both
+            #
+            #     if cache[column] is None:
+            #         if cache["false-alarm"] is None:
+            #             FAP_list = process_false_alarm(ls, power, n_bootstraps=n_bootstraps, double_bootstrap = double_bootstrap)
+            #             cache["false-alarm"] = FAP_list
+            #         else:
+            #             FAP_list = cache["false-alarm"]
+            #
+            #         #"rel_flux_SNR_T1",
+            #         #"Source_SNR_T1",
+            #         snr = np.median(ts["Source_SNR_"+target_id])
+            #         if len(FAP_list) != 0:
+            #             pvalue, pvalue_list = calculate_probability(snr, FAP_list, p_thresh = 0.05, conf_level = 99.7/100)
+            #         else:
+            #             print("WARNING false-alarm list is EMPTY")
+            #             pvalue, pvalue_list = (0, [])
+            #
+            #         cache[column] = (pvalue, pvalue_list, snr)
+            #
+            #     else:
+            #         pvalue, pvalue_list, snr = cache[column]
+            #
+            #
+            #     if len(pvalue_list) != 0:
+            #         print(f"{pvalue = }; {pvalue_list.mean() = }")
+            #         hist, bin_edges = astropy.stats.histogram(pvalue_list, bins = bins)
+            #         axis[column_idx].stairs(hist, bin_edges)
+            #     else:
+            #         print("WARNING pvalue list is EMPTY")
+            #
+            #     axis[column_idx].set_title("Probability that Peak is Produced by Noise")
+            #
+            #
             # Set title of plot
             if column_idx == 0:
                 curr_title = axis[column_idx].get_title()
@@ -510,17 +739,19 @@ def plot_rows_columns(file_name_list: list[str], results_list, rows = "all", col
             subplot.yaxis.set_major_locator(MaxNLocator(yticks))
         #     plt.setp(subplot.get_xticklabels(), rotation=30, ha='right')
 
+        long_cache[row_name] = (cache, ts, ls, target_id)
     fig.tight_layout()
 
+    return fig, ax_list, long_cache
 
-def main(file_name_list, zero_padding = 0):
+def main(file_name_list):
     print(f"{file_name_list = }")
 
     results_list = []
 
     for file in file_name_list:
         try:
-            result = process_file(file, zero_padding)
+            result = process_file(file, samples_per_peak = 10)
         except Exception as e:
             print(f"ERROR in {file = }. SKIPPING\n\n", e, "\n\n")
             continue
@@ -539,18 +770,65 @@ def main(file_name_list, zero_padding = 0):
 
     #rows = "all"
     #columns = "all"
-    rows = ["18bfs", "19abe"]
-    columns = ["signal", "periodogram", "pvalue"]
+    rows = "all"#["18bfs", "19abe"]
+    columns = ["signal", "periodogram", "signal"]#["signal", "periodogram", "pvalue"]
     n_xticks = 5
     n_yticks = 5
     bins = "blocks" # 15
-    plot_rows_columns(file_name_list, results_list,
-                      rows = rows,
-                      columns = columns,
-                      xticks = n_xticks,
-                      yticks = n_yticks,
-                      bins = bins
-    )
+    n_bootstraps = 500 # WARNING: For *ALL* periodogram false-alarm probabilities
+
+    double_bootstrap = True
+    fig, ax_list, long_cache = plot_rows_columns(file_name_list, results_list,
+                                                 rows = rows,
+                                                 columns = columns,
+                                                 xticks = n_xticks,
+                                                 yticks = n_yticks,
+                                                 bins = bins,
+                                                 n_bootstraps = n_bootstraps,
+                                                 double_bootstrap = double_bootstrap
+                                                 )
+
+    if rows == "all":
+        rows = list(range(len(file_name_list)))
+
+    for (obj, axis) in enumerate(ax_list):
+        #print("\n\n\n", long_cache)
+        (cache, ts, ls, target_id) = long_cache[rows[obj]]
+
+        (freq_list, power_list) = cache["periodogram"]
+        (ls, (freq_list, power_list), removed_values) = remove_max_power_freq(
+                ls, freq_list, power_list, n = 6,
+                n_bootstraps = n_bootstraps,
+                double_bootstrap = double_bootstrap,
+                )
+
+        removed_freq = u.Quantity([x[0] for x in removed_values])
+        removed_power = [x[1] for x in removed_values]
+        removed_fap = [x[2] for x in removed_values]
+
+
+        try:
+            len(removed_fap[0]) # test
+            # Hope it's not a single eleent list...
+            for i in range(len(removed_fap)):
+                removed_fap[i] = np.array(removed_fap[i])
+        except:
+            removed_fap = [np.array(removed_fap)]
+
+        for (freq, fap) in zip(removed_freq, removed_fap):
+            period = (1/freq).to(u.min)
+            print(f"{period = }; {fap.mean()*100 = }%")
+
+        axis[1].cla() # wipe previous iteration
+        axis[1].plot(1/freq_list, power_list)
+        axis[1].set_xscale("log")
+        #axis[1].set_yscale("log")
+
+        axis[2].cla() # wipe previous iteration
+        time = get_time_values(ts["time"], time_format = "unix")
+        #axis[2].errorbar(time, ls.y, yerr = ls.dy.value.tolist(), fmt = "x")
+        axis[2].plot(time, ls.y)
+
 
     plt.show()
 
@@ -564,8 +842,4 @@ if __name__ == "__main__":
     if REMOVE_CODING:
         files = list(filter(lambda s: not ("Coding" in s), files))
 
-    assert files != [], "No measurement files found"
-
-    zero_padding = 0
-
-    main(files, zero_padding = int(zero_padding))
+    main(files)
