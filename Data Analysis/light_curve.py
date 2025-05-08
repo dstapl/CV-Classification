@@ -15,6 +15,9 @@ from scipy.optimize import curve_fit
 
 from matplotlib.ticker import MaxNLocator
 
+from multiprocessing import cpu_count
+import pathos
+
 #def get_values(series):
 #	return list(map(lambda t: t.value, series))
 
@@ -95,7 +98,7 @@ def read_necessary_columns(file_name, target_id = "T1", sep = "\t"):
     return data
 
 
-def remove_max_power_freq(ls, freq, power, n = 1, n_bootstraps = 1000, double_bootstrap = False, snr = None, conf_level = 99.7/100):
+def remove_max_power_freq(ls, freq, power, n = 1, n_bootstraps = 1000, double_bootstrap = False, snr = None, conf_level = 99.7/100, fap_threshold = 1e-4):
     """MODIFIES LOMBSCARGLE INSTANCE
 
     Remove the frequency associated with the nth current highest powers
@@ -107,28 +110,30 @@ def remove_max_power_freq(ls, freq, power, n = 1, n_bootstraps = 1000, double_bo
     for i in range(1, n+1):
         max_power = power.max()
 
-        power_freq = freq[power == max_power].mean()
+        power_freq = freq[power == max_power][-1]
 
         (data_fap_value, lower_conf, upper_conf, std_err), fap_list  = process_false_alarm(ls, power, n_bootstraps = n_bootstraps, double_bootstrap = double_bootstrap)
-        print(f"{np.mean(fap_list) = } {np.median(fap_list) = }")
+        #print(f"{np.mean(fap_list) = } {np.median(fap_list) = }")
         # Convert false-alarm to pvalue with confidence
         if snr is None:
             snr = (1/ls.dy).mean() # TODO: Really not sure about this...
             #snr = 100
 
-        print(f"median {snr = }")
+        #print(f"median {snr = }")
         #print(f"{fap_list = }")
-        pvalue, prob_peak_list = calculate_probability(snr, fap_list)#, conf_level = 99.7/100)
+
+        pvalue, prob_peak_list = calculate_probability(snr, fap_list, fap_threshold)
 
         #print(f"{data_fap_value = }; {pvalue = }"
         threshold = 1 - conf_level
-        if False:# pvalue > threshold:
+        if pvalue > threshold:
             # halt
-            print(f"Halted at {i = } (Not removed). False-alarm was too high: {data_fap_value*100} +/- {std_err*100}% [{lower_conf*100}, {upper_conf*100}]%; {pvalue = }\n\n")
-            print(f"{fap_list = }\n{prob_peak_list = }")
+            print(f"Halted at {i = } {power_freq = } (Not removed). False-alarm was too high: {data_fap_value*100} +/- {std_err*100}% [{lower_conf*100}, {upper_conf*100}]%; {pvalue = }\n\n")
+            #print(f"{fap_list = }\n{prob_peak_list = }")
             break
         else:
-            print(f"{pvalue = }{threshold =}")
+            pass
+            #print(f"{pvalue = }{threshold =}")
 
         ls = remove_freq_signal(ls, power_freq)
         removed_values.append((power_freq, max_power, (data_fap_value, lower_conf, upper_conf, pvalue)))
@@ -305,6 +310,8 @@ def _bootstrap_max(t, y, dy, fmax, normalization, random_seed, n_bootstraps=1000
         std_err = u.Quantity(std_err)
         std_err.sort()
 
+        #print(f"{len(std_err) = }{len(power_max) = }")
+
     if not double_bootstrap:
         return power_max
     else:
@@ -427,21 +434,25 @@ def fap_bootstrap(ls,
     # so to get a distribution of pmax values, taking only the values less than the power
     # TODO: This is incorrect
     #print(f"bootstrap fap value: {np.mean(pmax) = }; {Z = }")
-    bootstrap_fap_value = 1 - np.searchsorted(pmax, Z) / len(pmax) # Fraction of values that pass
+    Z_idx = np.searchsorted(pmax,Z)
+    bootstrap_fap_value = 1 - Z_idx / len(pmax) # Fraction of values that pass
 
     #print(f"{bootstrap_fap_value = }")
 
     if bootstrap_fap_value == 0:
         lower_conf, upper_conf, std_err, data_fap_value = 0,0,0, 0
-        fap_inner_dist = [0,0] # Required for wilcoxon
-        print("bootstrap was 0")
+        fap_inner_dist = [0]*len(pmax) # Required for wilcoxon
+        #print("bootstrap was 0")
     else:
         # Find confidence intervals for 95% of data (2.5% and 97.5%)
         #print("Doubling")
         n = len(y)
 
         if double_bootstrap:
-            SE_boot = std_err_dist
+            # Only consider values that passed the power threshold
+            pmax = pmax[:Z_idx]
+            SE_boot = std_err_dist[:Z_idx]
+            #print(f"{len(SE_boot) = }")
         else:
             SE_boot = np.std(pmax) / np.sqrt(len(pmax))
 
@@ -466,8 +477,11 @@ def fap_bootstrap(ls,
             for inner_sample in pmax_inner:
                 fap = 1 - np.searchsorted(inner_sample, Z)/len(inner_sample)
                 fap_inner_dist.append(fap)
+            fap_inner_dist = fap_inner_dist[:Z_idx]
 
         if double_bootstrap:
+            #print(f"{len(fap_inner_dist) = }")
+            assert len(fap_inner_dist) == len(SE_boot), f"fap_inner and SE have different lengths {len(fap_inner_dist) = }; {len(SE_boot) = }"
             t_dist_boot = (fap_inner_dist - data_fap_value) / SE_boot
             t_dist_boot.sort()
             #print(f"{t_dist_boot = }")
@@ -503,11 +517,11 @@ def fap_bootstrap(ls,
     #print(bootstrap_fap_value, data_fap_value, lower_conf, upper_conf)
 
     if not double_bootstrap:
-        fap_inner_dist = [data_fap_value]*2
+        fap_inner_dist = [data_fap_value]*len(pmax)
 
     return (data_fap_value, lower_conf, upper_conf, std_err), (bootstrap_fap_value, fap_inner_dist, pmax)
 
-def calculate_probability(snr, fap_list):#, conf_level = 99.7/100):
+def calculate_probability(snr, fap_list, fap_threshold = 1e-4):#, conf_level = 99.7/100):
     """
     """
     # power_n = 1.5 # average value
@@ -524,96 +538,144 @@ def calculate_probability(snr, fap_list):#, conf_level = 99.7/100):
     #   Should produce 0 if all (gaussian) noise
     #   Should produce 0.5 if amplitude (HWHM) of noise equal to dm
     fap_list = np.array(fap_list)
+    #print(f"{len(fap_list) = }")
+
+
+    # Arbitrary but used in other papers. 1e-3 should be enough for 2sigma
+    test_arr = np.ones(fap_list.shape)*fap_threshold
+    #print(f"{np.mean(test_arr) = }; {np.median(test_arr) = }")
+    prob_peak_list = fap_list
+
+
+    diff = prob_peak_list - test_arr
+    # Round to prevent numerical inaccuracy causing different ranks
+    # Round to at least the decimal place of the threshold
+    import decimal
+
+    non_zero = fap_list != 0
+    if np.any(non_zero):
+        min_non_zero_fap = np.min(fap_list[fap_list != 0])
+        #print(min_non_zero_fap)
+        decimal_place = decimal.Decimal(str(min_non_zero_fap)).as_tuple().exponent
+        diff = np.round(diff, decimal_place + 2)
+
+    # mannwhitneyu returns pvalue of the *alternative*
+    # test_result = scipy.stats.mannwhitneyu(prob_peak_list, test_arr,
+    #                                        alternative = "less",
+    #                                        #= "False",
+    #                                        nan_policy = "omit"
+    #                                        )
+    
+
+    # test_result = scipy.stats.wilcoxon(diff,
+    #                                    alternative = "less",
+    #                                    nan_policy = "omit",
+    #                                    zero_method = "pratt",
+    #                                    )
+    #print(f"{np.max(fap_list) = }")
+    test_result = scipy.stats.ranksums(diff,np.zeros(len(diff)),
+                                       alternative = "less",
+                                       nan_policy = "omit",
+                                       )
+
+
+    # test_result = scipy.stats.ttest_1samp(prob_peak_list, fap_threshold,
+    #                                     alternative = "less",
+    #                                     nan_policy = "omit",
+    #                                     )
+    #Want pvalue for *significant* peak
+    pvalue = test_result.pvalue
+    return (pvalue, prob_peak_list)
     #print(fap_list)
 
-    print(f"{snr = }")
-    const = 0.0001 #2.77073586
-    prob_signal_present = const/np.clip(6.5 - 2.5 * np.log10(snr), a_min = 0, a_max = np.inf) # negative values to 0
-
-    # k = 1/40
-    # prob_signal_present = k * snr
-
-    # NOTE: Hand optimised for (SNR, FAP) = p
-    # Sigmoid function so always between 0,1
-    # (0, 0.001) = 0.5, and (100, 0.001) = 0.003
-    # b is between 0.01 and 0.2 (likely 0.081)
-    # # c is between 0 and 200 (likely 77)
-    # (b,c) = (0.081, 77)
-    # #(b,c)= 0.081, 100
-    # prob_signal_present = 1/(1 + np.exp(-b * (snr - c)) )
-    print(f"{prob_signal_present = }", end = "; ")
-    # Restrict probability to range [0,1]
-    prob_signal_present = np.clip(prob_signal_present, a_min=0, a_max=1)
-    print(f"After clip {prob_signal_present = }")
-
-    prob_noise_only = 1 - prob_signal_present
-    prior_factor = prob_noise_only / prob_signal_present
-    #print(f"{prior_factor = }")
-
-    # TODO: Run bootstrap (Under signal-present assumption) to find the correct value
-    prob_data_given_signal_present = 0.5
-    # (Technically a list of bayes factors)
-    with np.errstate(divide='ignore'):
-        bayes_factor = prob_data_given_signal_present / fap_list
-
-    prob_noise_only_given_peak = 1/(1 + bayes_factor * prior_factor)
-
-    prob_peak_list = prob_noise_only_given_peak
-
-    assert np.sum(prob_peak_list > 1) == 0, "Invalid adjusted probabilities: greater than 1"
-
-
-    if np.all(prob_peak_list == 0):
-        #print(prob_peak_list)
-        return (0, prob_peak_list) # pvalue is 0 since all FAP are 0
-
-    else:
-        #
-        # # p < p_thresh <==> p - p_thresh < 0
-        #print(f"{np.mean(prob_peak_list)}; {np.median(prob_peak_list) = }")
-        # Two-sided alternative is mu != 1
-        # test_result = scipy.stats.wilcoxon(prob_peak_list, alternative = "greater",
-        #                                    correction = False, nan_policy = "omit")
-
-        #pvalue = 1 - test_result.pvalue
-
-        # Ranked sum test for non-parametric *independent* samples
-        test_arr = np.ones(len(prob_peak_list))
-
-        test_result = scipy.stats.mannwhitneyu(prob_peak_list, test_arr,
-                                               alternative = "less",
-                                               #= "False",
-                                               nan_policy = "omit"
-        )
-
-        pvalue = 1 - test_result.pvalue
-
-        # prob > 0 
-        #
-        # from scipy.stats import permutation_test
-        #
-        # zeros = np.zeros(len(prob_peak_list))
-        #
-        # def statistic(x,y, axis):
-        #     return np.mean(x, axis=axis) - np.mean(y, axis=axis)
-        #
-        # # TODO: Check
-        # res = permutation_test((prob_peak_list, zeros), statistic, vectorized = True, alternative = "two-sided",
-        #                        permutation_type = "pairings")
-        # stat, pvalue, null = res.statistic, res.pvalue, res.null_distribution
-        return (pvalue, prob_peak_list)
-
+    # print(f"{snr = }")
+    # const = 0.0001 #2.77073586
+    # prob_signal_present = const/np.clip(6.5 - 2.5 * np.log10(snr), a_min = 0, a_max = np.inf) # negative values to 0
+    #
+    # # k = 1/40
+    # # prob_signal_present = k * snr
+    #
+    # # NOTE: Hand optimised for (SNR, FAP) = p
+    # # Sigmoid function so always between 0,1
+    # # (0, 0.001) = 0.5, and (100, 0.001) = 0.003
+    # # b is between 0.01 and 0.2 (likely 0.081)
+    # # # c is between 0 and 200 (likely 77)
+    # # (b,c) = (0.081, 77)
+    # # #(b,c)= 0.081, 100
+    # # prob_signal_present = 1/(1 + np.exp(-b * (snr - c)) )
+    # print(f"{prob_signal_present = }", end = "; ")
+    # # Restrict probability to range [0,1]
+    # prob_signal_present = np.clip(prob_signal_present, a_min=0, a_max=1)
+    # print(f"After clip {prob_signal_present = }")
+    #
+    # prob_noise_only = 1 - prob_signal_present
+    # prior_factor = prob_noise_only / prob_signal_present
+    # #print(f"{prior_factor = }")
+    #
+    # # TODO: Run bootstrap (Under signal-present assumption) to find the correct value
+    # prob_data_given_signal_present = 0.5
+    # # (Technically a list of bayes factors)
+    # with np.errstate(divide='ignore'):
+    #     bayes_factor = prob_data_given_signal_present / fap_list
+    #
+    # prob_noise_only_given_peak = 1/(1 + bayes_factor * prior_factor)
+    #
+    # prob_peak_list = prob_noise_only_given_peak
+    #
+    # assert np.sum(prob_peak_list > 1) == 0, "Invalid adjusted probabilities: greater than 1"
+    #
+    #
+    # if np.all(prob_peak_list == 0):
+    #     #print(prob_peak_list)
+    #     return (0, prob_peak_list) # pvalue is 0 since all FAP are 0
+    #
+    # else:
+    #     #
+    #     # # p < p_thresh <==> p - p_thresh < 0
+    #     #print(f"{np.mean(prob_peak_list)}; {np.median(prob_peak_list) = }")
+    #     # Two-sided alternative is mu != 1
+    #     # test_result = scipy.stats.wilcoxon(prob_peak_list, alternative = "greater",
+    #     #                                    correction = False, nan_policy = "omit")
+    #
+    #     #pvalue = 1 - test_result.pvalue
+    #
+    #     # Ranked sum test for non-parametric *independent* samples
+    #     test_arr = np.ones(len(prob_peak_list))
+    #
+    #     test_result = scipy.stats.mannwhitneyu(prob_peak_list, test_arr,
+    #                                            alternative = "less",
+    #                                            #= "False",
+    #                                            nan_policy = "omit"
+    #     )
+    #
+    #     pvalue = 1 - test_result.pvalue
+    #
+    #     # prob > 0 
+    #     #
+    #     # from scipy.stats import permutation_test
+    #     #
+    #     # zeros = np.zeros(len(prob_peak_list))
+    #     #
+    #     # def statistic(x,y, axis):
+    #     #     return np.mean(x, axis=axis) - np.mean(y, axis=axis)
+    #     #
+    #     # # TODO: Check
+    #     # res = permutation_test((prob_peak_list, zeros), statistic, vectorized = True, alternative = "two-sided",
+    #     #                        permutation_type = "pairings")
+    #     # stat, pvalue, null = res.statistic, res.pvalue, res.null_distribution
+    #     return (pvalue, prob_peak_list)
+    #
 def process_false_alarm(ls, power, n_bootstraps = 1000, double_bootstrap = False):
     # Analysis of highest peak (Hopefully that associated with the true signal)
     max_power = power.max()
 
-    default = ls.false_alarm_probability(power.max(), method = 'bootstrap')
-    print(f"Default implementation {default = }")
-    if default == 0:
-        (data_fap_value, lower_conf, upper_conf, std_err), fap_dist = (0, 0, 0, 0), [0,0]
-    else:
-        # (data_fap_value, lower_conf, upper_conf, std_err), (bootstrap_fap_value, fap_inner_dist, pmax)
-        (data_fap_value, lower_conf, upper_conf, std_err), (_,fap_dist,_)  = custom_false_alarm_probability(ls, max_power, method = "bootstrap", n_bootstraps = n_bootstraps, double_bootstrap = double_bootstrap)
+    # default = ls.false_alarm_probability(power.max(), method = 'bootstrap',method_kwds = {"n_bootstraps": n_bootstraps})
+    # print(f"Default implementation {default = }")
+    # if default == 0:
+    #     (data_fap_value, lower_conf, upper_conf, std_err), fap_dist = (0, 0, 0, 0), [0]*n_bootstraps
+    # else:
+    #     # (data_fap_value, lower_conf, upper_conf, std_err), (bootstrap_fap_value, fap_inner_dist, pmax)
+    (data_fap_value, lower_conf, upper_conf, std_err), (_,fap_dist,_)  = custom_false_alarm_probability(ls, max_power, method = "bootstrap", n_bootstraps = n_bootstraps, double_bootstrap = double_bootstrap)
 
     return (data_fap_value, lower_conf, upper_conf, std_err), fap_dist
 
@@ -687,7 +749,7 @@ def plot_rows_columns(file_name_list: list[str],
 
 
     n_rows, n_column = len(rows), len(columns)
-    print(f"{n_rows = }, {n_column = }")
+    #print(f"{n_rows = }, {n_column = }")
     if len(ax_list) == 0:
         fig, ax_list = plt.subplots(nrows = n_rows, ncols = n_column,
                                     figsize = (16, 8))
@@ -727,7 +789,7 @@ def plot_rows_columns(file_name_list: list[str],
                         err_flux = ts["rel_flux_err_"+target_id]
                     else:
                         err_flux = ls.dy
-                        print(f"{err_flux = }")
+                        #print(f"{err_flux = }")
 
                     cache[column] = (time, flux, err_flux)
                 else:
@@ -848,11 +910,50 @@ def multi_sine(t, *params):
         A = params[n_params*i + 1]
         B = params[n_params*i + 2]
         f = params[n_params*i + 3]
-        print(offset, A,B,f)
+        #print(offset, A,B,f)
         result += offset + A * np.sin(2 * np.pi *  f * t) + B * np.cos(2*np.pi * f * t)
 
     return result
 
+
+## For multiprocessing
+def calc_and_print_probability(ls, ts, target_id, freq_list, power_list, n_peaks = 3, n_bootstraps = 1000, double_bootstrap = True, fap_threshold = 1e-4, n_sigma = 3):
+    n_sigma_conf = {1: 68.27/100, 2: 95.45/100, 3: 99.73/100, 4: 99.9937/100}
+    conf_level = n_sigma_conf[n_sigma]
+
+    (ls, (freq_list, power_list), removed_values) = remove_max_power_freq(
+            ls, freq_list, power_list, n = n_peaks,
+            n_bootstraps = n_bootstraps,
+            double_bootstrap = double_bootstrap,
+            snr = np.median(ts["Source_SNR_"+target_id]),
+            conf_level = conf_level,
+            fap_threshold = fap_threshold,
+            )
+
+    #removed_values.append((power_freq, max_power, (data_fap_value, lower_conf, upper_conf)))
+    removed_freq = u.Quantity([x[0] for x in removed_values])
+    removed_power = [x[1] for x in removed_values]
+
+    # (data_fap_value, lower_conf, upper_conf)
+    removed_fap = [x[2] for x in removed_values]
+
+    # try:
+    #     len(removed_fap[0]) # test
+    #     # Hope it's not a single eleent list...
+    # except:
+    #     removed_fap = [np.array(removed_fap)]
+    # if type(removed_fap[0]) in [list, tuple]:
+    #     for i in range(len(removed_fap)):
+    #         removed_fap[i] = np.array(removed_fap[i])
+    removed_fap = np.array(removed_fap)
+
+    return (removed_freq, removed_power, removed_fap)
+    # for (freq, (fap, lower_conf, upper_conf, pvalue)) in zip(removed_freq, removed_fap):
+    #     period = (1/freq).to(u.min)
+    #     fap_mean_p = fap.mean()*100
+    #     (lower_conf_p, upper_conf_p) = (lower_conf * 100, upper_conf * 100)
+    #     print(f"{period = }; {fap_mean_p = }% [{lower_conf_p} {upper_conf}]%; {pvalue = :}")
+    
 
 def main(file_name_list):
     print("***PROGRAM START***\n")
@@ -886,9 +987,9 @@ def main(file_name_list):
     n_xticks = 5
     n_yticks = 5
     bins = "blocks" # 15
-    n_bootstraps = 10 # WARNING: For *ALL* periodogram false-alarm probabilities
+    n_bootstraps = 1000 # WARNING: For *ALL* periodogram false-alarm probabilities
 
-    double_bootstrap = 0
+    double_bootstrap = 1
     fig, ax_list, long_cache = plot_rows_columns(file_name_list, results_list,
                                                  rows = rows,
                                                  columns = columns,
@@ -907,9 +1008,11 @@ def main(file_name_list):
     n_sigma_conf = {1: 68.27/100, 2: 95.45/100, 3: 99.73/100, 4: 99.9937/100}
 
 
-    n_sigma = 2
+    n_sigma = 3
 
     conf_level = n_sigma_conf[n_sigma]
+
+    fap_threshold = 1e-4
     for (obj, axis) in enumerate(ax_list):
         if type(obj) == int:
             obj_name = file_name_list[obj]
@@ -921,108 +1024,146 @@ def main(file_name_list):
         (cache, ts, ls, target_id) = long_cache[rows[obj]]
 
         (freq_list, power_list) = cache["periodogram"]
-        (ls, (freq_list, power_list), removed_values) = remove_max_power_freq(
-                ls, freq_list, power_list, n = 1,
-                n_bootstraps = n_bootstraps,
+
+        #with Pool(processes = cpu_count() // 2) as pool: # Don't max out cpu...
+        ncpus = cpu_count() // 1
+        with pathos.multiprocessing.ProcessingPool(ncpus = ncpus) as pool:
+            n_peaks_remove = 3
+
+            # Wrapper since lambda objects can't be pickled
+            def p_f(nsigma):
+                return calc_and_print_probability(
+                ls, ts, target_id, freq_list, power_list,
+                n_peaks = n_peaks_remove,
                 double_bootstrap = double_bootstrap,
-                snr = np.median(ts["Source_SNR_"+target_id]),
-                conf_level = conf_level
+                fap_threshold = fap_threshold,
+                n_sigma = nsigma
                 )
 
-        #removed_values.append((power_freq, max_power, (data_fap_value, lower_conf, upper_conf)))
-        removed_freq = u.Quantity([x[0] for x in removed_values])
-        removed_power = [x[1] for x in removed_values]
-
-        # (data_fap_value, lower_conf, upper_conf)
-        removed_fap = [x[2] for x in removed_values]
-
-        # try:
-        #     len(removed_fap[0]) # test
-        #     # Hope it's not a single eleent list...
-        # except:
-        #     removed_fap = [np.array(removed_fap)]
-        # if type(removed_fap[0]) in [list, tuple]:
-        #     for i in range(len(removed_fap)):
-        #         removed_fap[i] = np.array(removed_fap[i])
-        removed_fap = np.array(removed_fap)
-        for (freq, (fap, lower_conf, upper_conf, pvalue)) in zip(removed_freq, removed_fap):
-            period = (1/freq).to(u.min)
-            print(f"{period = }; {fap.mean()*100 = :.2E}% [{lower_conf*100:.2E} {upper_conf*100:.2E}]%; {pvalue = :.2E}")
-
-
-        # Try to fit functions to periodogram to get uncertainty
-        # Get initial guess from lomb-scargle
-        initial_guess = []
-        bounds = []
-        for freq in removed_freq:
-            model_params = ls.model_parameters(freq).value.tolist()
-            offset, A, B = model_params
-           
-            freq = freq.value
-
-            minutes_tol = 60
-            day_tol = minutes_tol/60/24
-            freq_bounds = [(freq-day_tol, freq+day_tol)]
-            ab_bounds = [(offset - 0.5, offset + 0.5), (A-3, A+3), (B-3, B+3)]
-
-            ab_bounds.extend(freq_bounds)
-
-            bounds.append(ab_bounds)
-            #print(f"{model_params = }")
-            initial_guess.extend([offset, A,B,freq])
-
-        print(f"{initial_guess = }")
-        
-        t = get_time_values(ls.t, "unix")
-        y = ls.y - np.mean(ls.y)
-
-        flat_bounds = [[],[]]
-        for bounds_list in bounds:
-            for param in bounds_list:
-                flat_bounds[0].append(param[0])
-                flat_bounds[1].append(param[1])
-        #bounds = np.array(bounds).flatten()
-
-        popt, pcov = curve_fit(multi_sine, t, y, p0=initial_guess, bounds = flat_bounds)
-        
-        print(f"Stability: {np.linalg.cond(pcov) = }")
-        offset = popt[0]
-        offset_err = np.sqrt(pcov[0, 0])
-
-        sine_params = popt[1:].reshape(-1, 3)
-        sine_uncertainties = np.sqrt(np.diag(pcov)[1:]).reshape(-1, 3)
-
-        model_y = multi_sine(t, *sine_params)
-        print(model_y)
-        exit()
-        plt.plot(t, y)
-        plt.plot(t, model_y)
-        #print
-        plt.show()
-        # Frequency uncertainties
-        freq_params = sine_params[:,2] / u.day # (A,B,f)
-        freq_uncertainties = sine_uncertainties[:,2] / u.day
-
-        # Values are in per day
-        period_params = (1/freq_params).to(u.min)
-        period_unc = (1/freq_uncertainties).to(u.min)
-
-        for (period, unc) in zip(period_params, period_unc):
-            print(f"{period = } +/ {unc}")
-        # print(f"{freq_params = }")
-        # print(f"{freq_uncertainties = }")
-
-
-        axis[1].cla() # wipe previous iteration
-        axis[1].plot(1/freq_list, power_list)
-        axis[1].set_xscale("log")
-        #axis[1].set_yscale("log")
-
-        axis[2].cla() # wipe previous iteration
-        time = get_time_values(ts["time"], time_format = "unix")
-        #axis[2].errorbar(time, ls.y, yerr = ls.dy.value.tolist(), fmt = "x")
-        axis[2].plot(time, ls.y)
-
+            # Each element of res will be
+            # (removed_freq, removed_power, removed_fap)
+            res = pool.imap(p_f, range(2, 4+1))
+            
+            for result in res:
+                (removed_freq, removed_power, removed_fap) = result
+                for (freq, (fap, lower_conf, upper_conf, pvalue)) in zip(removed_freq, removed_fap):
+                    period = (1/freq).to(u.min)
+                    fap_mean_p = fap.mean()*100
+                    (lower_conf_p, upper_conf_p) = (lower_conf * 100, upper_conf * 100)
+                    print(f"{period = }; {fap_mean_p = }% [{lower_conf_p} {upper_conf_p}]%; {pvalue = }")
+                print("\n")
+        print("\n\n\n")
+        # for n_sigma in range(2, 4+1):
+        #
+        #     conf_level = n_sigma_conf[n_sigma]
+        #
+        #     (ls, (freq_list, power_list), removed_values) = remove_max_power_freq(
+        #             ls, freq_list, power_list, n = 4,
+        #             n_bootstraps = n_bootstraps,
+        #             double_bootstrap = double_bootstrap,
+        #             snr = np.median(ts["Source_SNR_"+target_id]),
+        #             conf_level = conf_level,
+        #             fap_threshold = fap_threshold,
+        #             )
+        #
+        #     #removed_values.append((power_freq, max_power, (data_fap_value, lower_conf, upper_conf)))
+        #     removed_freq = u.Quantity([x[0] for x in removed_values])
+        #     removed_power = [x[1] for x in removed_values]
+        #
+        #     # (data_fap_value, lower_conf, upper_conf)
+        #     removed_fap = [x[2] for x in removed_values]
+        #
+        #     # try:
+        #     #     len(removed_fap[0]) # test
+        #     #     # Hope it's not a single eleent list...
+        #     # except:
+        #     #     removed_fap = [np.array(removed_fap)]
+        #     # if type(removed_fap[0]) in [list, tuple]:
+        #     #     for i in range(len(removed_fap)):
+        #     #         removed_fap[i] = np.array(removed_fap[i])
+        #     removed_fap = np.array(removed_fap)
+        #     for (freq, (fap, lower_conf, upper_conf, pvalue)) in zip(removed_freq, removed_fap):
+        #         period = (1/freq).to(u.min)
+        #         fap_mean_p = fap.mean()*100
+        #         (lower_conf_p, upper_conf_p) = (lower_conf * 100, upper_conf * 100)
+        #         print(f"{period = }; {fap_mean_p = }% [{lower_conf_p} {upper_conf}]%; {pvalue = :}")
+        #
+        #     print("\n\n\n\n")
+        #
+        # continue
+        # # Try to fit functions to periodogram to get uncertainty
+        # # Get initial guess from lomb-scargle
+        # initial_guess = []
+        # bounds = []
+        # for freq in removed_freq:
+        #     model_params = ls.model_parameters(freq).value.tolist()
+        #     offset, A, B = model_params
+        #
+        #     freq = freq.value
+        #
+        #     minutes_tol = 60
+        #     day_tol = minutes_tol/60/24
+        #     freq_bounds = [(freq-day_tol, freq+day_tol)]
+        #     ab_bounds = [(offset - 0.5, offset + 0.5), (A-3, A+3), (B-3, B+3)]
+        #
+        #     ab_bounds.extend(freq_bounds)
+        #
+        #     bounds.append(ab_bounds)
+        #     #print(f"{model_params = }")
+        #     initial_guess.extend([offset, A,B,freq])
+        #
+        # print(f"{initial_guess = }")
+        #
+        # t = get_time_values(ls.t, "unix")
+        # y = ls.y - np.mean(ls.y)
+        #
+        # flat_bounds = [[],[]]
+        # for bounds_list in bounds:
+        #     for param in bounds_list:
+        #         flat_bounds[0].append(param[0])
+        #         flat_bounds[1].append(param[1])
+        # #bounds = np.array(bounds).flatten()
+        #
+        # popt, pcov = curve_fit(multi_sine, t, y, p0=initial_guess, bounds = flat_bounds)
+        #
+        # print(f"Stability: {np.linalg.cond(pcov) = }")
+        # offset = popt[0]
+        # offset_err = np.sqrt(pcov[0, 0])
+        #
+        # sine_params = popt[1:].reshape(-1, 3)
+        # sine_uncertainties = np.sqrt(np.diag(pcov)[1:]).reshape(-1, 3)
+        #
+        # model_y = multi_sine(t, *sine_params)
+        # print(model_y)
+        # exit()
+        # plt.plot(t, y)
+        # plt.plot(t, model_y)
+        # #print
+        # plt.show()
+        # # Frequency uncertainties
+        # freq_params = sine_params[:,2] / u.day # (A,B,f)
+        # freq_uncertainties = sine_uncertainties[:,2] / u.day
+        #
+        # # Values are in per day
+        # period_params = (1/freq_params).to(u.min)
+        # period_unc = (1/freq_uncertainties).to(u.min)
+        #
+        # for (period, unc) in zip(period_params, period_unc):
+        #     print(f"{period = } +/ {unc}")
+        # # print(f"{freq_params = }")
+        # # print(f"{freq_uncertainties = }")
+        #
+        #
+        # axis[1].cla() # wipe previous iteration
+        # axis[1].plot(1/freq_list, power_list)
+        # axis[1].set_xscale("log")
+        # #axis[1].set_yscale("log")
+        #
+        # axis[2].cla() # wipe previous iteration
+        # time = get_time_values(ts["time"], time_format = "unix")
+        # #axis[2].errorbar(time, ls.y, yerr = ls.dy.value.tolist(), fmt = "x")
+        # axis[2].plot(time, ls.y)
+        #
         print("\n\n\n\n")
 
     #plt.show()
