@@ -17,6 +17,13 @@ from matplotlib.ticker import MaxNLocator
 
 from multiprocessing import cpu_count
 import pathos
+from phasedm import pdm, beta_test
+
+
+## Globals
+n_sigma_conf = {1: 68.27/100, 2: 95.45/100, 3: 99.73/100, 4: 99.9937/100}
+
+
 
 #def get_values(series):
 #	return list(map(lambda t: t.value, series))
@@ -918,7 +925,6 @@ def multi_sine(t, *params):
 
 ## For multiprocessing
 def calc_and_print_probability(ls, ts, target_id, freq_list, power_list, n_peaks = 3, n_bootstraps = 1000, double_bootstrap = True, fap_threshold = 1e-4, n_sigma = 3):
-    n_sigma_conf = {1: 68.27/100, 2: 95.45/100, 3: 99.73/100, 4: 99.9937/100}
     conf_level = n_sigma_conf[n_sigma]
 
     (ls, (freq_list, power_list), removed_values) = remove_max_power_freq(
@@ -1013,24 +1019,25 @@ def main(file_name_list):
     conf_level = n_sigma_conf[n_sigma]
 
     fap_threshold = 1e-4
-    for (obj, axis) in enumerate(ax_list):
-        if type(obj) == int:
-            obj_name = file_name_list[obj]
-        else:
-            obj_name = obj
-        print(f"STARTING {obj_name}")
 
-        #print("\n\n\n", long_cache)
-        (cache, ts, ls, target_id) = long_cache[rows[obj]]
+    ncpus = cpu_count() // 1
+    with pathos.multiprocessing.ProcessingPool(ncpus = ncpus) as pool:
+        for (obj, axis) in enumerate(ax_list):
+            if type(obj) == int:
+                obj_name = file_name_list[obj]
+            else:
+                obj_name = obj
+            print(f"STARTING {obj_name}")
 
-        (freq_list, power_list) = cache["periodogram"]
+            #print("\n\n\n", long_cache)
+            (cache, ts, ls, target_id) = long_cache[rows[obj]]
 
-        #with Pool(processes = cpu_count() // 2) as pool: # Don't max out cpu...
-        ncpus = cpu_count() // 1
-        with pathos.multiprocessing.ProcessingPool(ncpus = ncpus) as pool:
+            (freq_list, power_list) = cache["periodogram"]
+            (time, flux, err_flux) = cache["signal"]
+
             n_peaks_remove = 3
-
             # Wrapper since lambda objects can't be pickled
+
             def p_f(nsigma):
                 return calc_and_print_probability(
                 ls, ts, target_id, freq_list, power_list,
@@ -1042,7 +1049,7 @@ def main(file_name_list):
 
             # Each element of res will be
             # (removed_freq, removed_power, removed_fap)
-            res = pool.imap(p_f, range(2, 4+1))
+            res = pool.imap(p_f, range(3, 3+1))
             
             for result in res:
                 (removed_freq, removed_power, removed_fap) = result
@@ -1051,120 +1058,150 @@ def main(file_name_list):
                     fap_mean_p = fap.mean()*100
                     (lower_conf_p, upper_conf_p) = (lower_conf * 100, upper_conf * 100)
                     print(f"{period = }; {fap_mean_p = }% [{lower_conf_p} {upper_conf_p}]%; {pvalue = }")
+
+
+                    # # PDM analysis
+                    # min_freq = 1/(50*u.min)
+                    # max_freq = 1/(60*2*u.min)
+                    #
+                    # if max_freq.value < min_freq.value:
+                    #     max_freq, min_freq = min_freq, max_freq
+                    # n_bins = 10
+                    # n_freqs = int(1e+4)#len(result) + 2 # wiggle room in pdm 
+                    # #resolution = time[1]-time[0]
+                    # num_data_points = len(time) 
+                    # pdm_p = 1 - n_sigma_conf[n_sigma] # significance level
+                    # sig_theta = beta_test(num_data_points, n_bins, pdm_p)
+                    # print(f"Significant theta {sig_theta}")
+                    #
+                    # # Err Otherwise: "Convert to numpy array or Astrop Time object"
+                    # pdm_time = np.array(time)
+                    # pdm_flux = np.array(flux)
+                    # pdm_err_flux = np.array(err_flux)
+                    # pdm_freq, pdm_theta = pdm(
+                    #     pdm_time, pdm_flux, min_freq.value, max_freq.value, n_freqs, sigma=pdm_err_flux,
+                    #     n_bins=n_bins, verbose=1
+                    # )
+                    # # Find the best period
+                    #
+                    # smallest_n = pdm_theta.argsort()[:len(result)+2]
+                    # best_freq = pdm_freq[smallest_n]
+                    # print(f"Detected periods: {1/best_freq}")
+
                 print("\n")
-        print("\n\n\n")
-        # for n_sigma in range(2, 4+1):
-        #
-        #     conf_level = n_sigma_conf[n_sigma]
-        #
-        #     (ls, (freq_list, power_list), removed_values) = remove_max_power_freq(
-        #             ls, freq_list, power_list, n = 4,
-        #             n_bootstraps = n_bootstraps,
-        #             double_bootstrap = double_bootstrap,
-        #             snr = np.median(ts["Source_SNR_"+target_id]),
-        #             conf_level = conf_level,
-        #             fap_threshold = fap_threshold,
-        #             )
-        #
-        #     #removed_values.append((power_freq, max_power, (data_fap_value, lower_conf, upper_conf)))
-        #     removed_freq = u.Quantity([x[0] for x in removed_values])
-        #     removed_power = [x[1] for x in removed_values]
-        #
-        #     # (data_fap_value, lower_conf, upper_conf)
-        #     removed_fap = [x[2] for x in removed_values]
-        #
-        #     # try:
-        #     #     len(removed_fap[0]) # test
-        #     #     # Hope it's not a single eleent list...
-        #     # except:
-        #     #     removed_fap = [np.array(removed_fap)]
-        #     # if type(removed_fap[0]) in [list, tuple]:
-        #     #     for i in range(len(removed_fap)):
-        #     #         removed_fap[i] = np.array(removed_fap[i])
-        #     removed_fap = np.array(removed_fap)
-        #     for (freq, (fap, lower_conf, upper_conf, pvalue)) in zip(removed_freq, removed_fap):
-        #         period = (1/freq).to(u.min)
-        #         fap_mean_p = fap.mean()*100
-        #         (lower_conf_p, upper_conf_p) = (lower_conf * 100, upper_conf * 100)
-        #         print(f"{period = }; {fap_mean_p = }% [{lower_conf_p} {upper_conf}]%; {pvalue = :}")
-        #
-        #     print("\n\n\n\n")
-        #
-        # continue
-        # # Try to fit functions to periodogram to get uncertainty
-        # # Get initial guess from lomb-scargle
-        # initial_guess = []
-        # bounds = []
-        # for freq in removed_freq:
-        #     model_params = ls.model_parameters(freq).value.tolist()
-        #     offset, A, B = model_params
-        #
-        #     freq = freq.value
-        #
-        #     minutes_tol = 60
-        #     day_tol = minutes_tol/60/24
-        #     freq_bounds = [(freq-day_tol, freq+day_tol)]
-        #     ab_bounds = [(offset - 0.5, offset + 0.5), (A-3, A+3), (B-3, B+3)]
-        #
-        #     ab_bounds.extend(freq_bounds)
-        #
-        #     bounds.append(ab_bounds)
-        #     #print(f"{model_params = }")
-        #     initial_guess.extend([offset, A,B,freq])
-        #
-        # print(f"{initial_guess = }")
-        #
-        # t = get_time_values(ls.t, "unix")
-        # y = ls.y - np.mean(ls.y)
-        #
-        # flat_bounds = [[],[]]
-        # for bounds_list in bounds:
-        #     for param in bounds_list:
-        #         flat_bounds[0].append(param[0])
-        #         flat_bounds[1].append(param[1])
-        # #bounds = np.array(bounds).flatten()
-        #
-        # popt, pcov = curve_fit(multi_sine, t, y, p0=initial_guess, bounds = flat_bounds)
-        #
-        # print(f"Stability: {np.linalg.cond(pcov) = }")
-        # offset = popt[0]
-        # offset_err = np.sqrt(pcov[0, 0])
-        #
-        # sine_params = popt[1:].reshape(-1, 3)
-        # sine_uncertainties = np.sqrt(np.diag(pcov)[1:]).reshape(-1, 3)
-        #
-        # model_y = multi_sine(t, *sine_params)
-        # print(model_y)
-        # exit()
-        # plt.plot(t, y)
-        # plt.plot(t, model_y)
-        # #print
-        # plt.show()
-        # # Frequency uncertainties
-        # freq_params = sine_params[:,2] / u.day # (A,B,f)
-        # freq_uncertainties = sine_uncertainties[:,2] / u.day
-        #
-        # # Values are in per day
-        # period_params = (1/freq_params).to(u.min)
-        # period_unc = (1/freq_uncertainties).to(u.min)
-        #
-        # for (period, unc) in zip(period_params, period_unc):
-        #     print(f"{period = } +/ {unc}")
-        # # print(f"{freq_params = }")
-        # # print(f"{freq_uncertainties = }")
-        #
-        #
-        # axis[1].cla() # wipe previous iteration
-        # axis[1].plot(1/freq_list, power_list)
-        # axis[1].set_xscale("log")
-        # #axis[1].set_yscale("log")
-        #
-        # axis[2].cla() # wipe previous iteration
-        # time = get_time_values(ts["time"], time_format = "unix")
-        # #axis[2].errorbar(time, ls.y, yerr = ls.dy.value.tolist(), fmt = "x")
-        # axis[2].plot(time, ls.y)
-        #
-        print("\n\n\n\n")
+            print("\n\n\n")
+            # for n_sigma in range(2, 4+1):
+            #
+            #     conf_level = n_sigma_conf[n_sigma]
+            #
+            #     (ls, (freq_list, power_list), removed_values) = remove_max_power_freq(
+            #             ls, freq_list, power_list, n = 4,
+            #             n_bootstraps = n_bootstraps,
+            #             double_bootstrap = double_bootstrap,
+            #             snr = np.median(ts["Source_SNR_"+target_id]),
+            #             conf_level = conf_level,
+            #             fap_threshold = fap_threshold,
+            #             )
+            #
+            #     #removed_values.append((power_freq, max_power, (data_fap_value, lower_conf, upper_conf)))
+            #     removed_freq = u.Quantity([x[0] for x in removed_values])
+            #     removed_power = [x[1] for x in removed_values]
+            #
+            #     # (data_fap_value, lower_conf, upper_conf)
+            #     removed_fap = [x[2] for x in removed_values]
+            #
+            #     # try:
+            #     #     len(removed_fap[0]) # test
+            #     #     # Hope it's not a single eleent list...
+            #     # except:
+            #     #     removed_fap = [np.array(removed_fap)]
+            #     # if type(removed_fap[0]) in [list, tuple]:
+            #     #     for i in range(len(removed_fap)):
+            #     #         removed_fap[i] = np.array(removed_fap[i])
+            #     removed_fap = np.array(removed_fap)
+            #     for (freq, (fap, lower_conf, upper_conf, pvalue)) in zip(removed_freq, removed_fap):
+            #         period = (1/freq).to(u.min)
+            #         fap_mean_p = fap.mean()*100
+            #         (lower_conf_p, upper_conf_p) = (lower_conf * 100, upper_conf * 100)
+            #         print(f"{period = }; {fap_mean_p = }% [{lower_conf_p} {upper_conf}]%; {pvalue = :}")
+            #
+            #     print("\n\n\n\n")
+            #
+            # continue
+            # # Try to fit functions to periodogram to get uncertainty
+            # # Get initial guess from lomb-scargle
+            # initial_guess = []
+            # bounds = []
+            # for freq in removed_freq:
+            #     model_params = ls.model_parameters(freq).value.tolist()
+            #     offset, A, B = model_params
+            #
+            #     freq = freq.value
+            #
+            #     minutes_tol = 60
+            #     day_tol = minutes_tol/60/24
+            #     freq_bounds = [(freq-day_tol, freq+day_tol)]
+            #     ab_bounds = [(offset - 0.5, offset + 0.5), (A-3, A+3), (B-3, B+3)]
+            #
+            #     ab_bounds.extend(freq_bounds)
+            #
+            #     bounds.append(ab_bounds)
+            #     #print(f"{model_params = }")
+            #     initial_guess.extend([offset, A,B,freq])
+            #
+            # print(f"{initial_guess = }")
+            #
+            # t = get_time_values(ls.t, "unix")
+            # y = ls.y - np.mean(ls.y)
+            #
+            # flat_bounds = [[],[]]
+            # for bounds_list in bounds:
+            #     for param in bounds_list:
+            #         flat_bounds[0].append(param[0])
+            #         flat_bounds[1].append(param[1])
+            # #bounds = np.array(bounds).flatten()
+            #
+            # popt, pcov = curve_fit(multi_sine, t, y, p0=initial_guess, bounds = flat_bounds)
+            #
+            # print(f"Stability: {np.linalg.cond(pcov) = }")
+            # offset = popt[0]
+            # offset_err = np.sqrt(pcov[0, 0])
+            #
+            # sine_params = popt[1:].reshape(-1, 3)
+            # sine_uncertainties = np.sqrt(np.diag(pcov)[1:]).reshape(-1, 3)
+            #
+            # model_y = multi_sine(t, *sine_params)
+            # print(model_y)
+            # exit()
+            # plt.plot(t, y)
+            # plt.plot(t, model_y)
+            # #print
+            # plt.show()
+            # # Frequency uncertainties
+            # freq_params = sine_params[:,2] / u.day # (A,B,f)
+            # freq_uncertainties = sine_uncertainties[:,2] / u.day
+            #
+            # # Values are in per day
+            # period_params = (1/freq_params).to(u.min)
+            # period_unc = (1/freq_uncertainties).to(u.min)
+            #
+            # for (period, unc) in zip(period_params, period_unc):
+            #     print(f"{period = } +/ {unc}")
+            # # print(f"{freq_params = }")
+            # # print(f"{freq_uncertainties = }")
+            #
+            #
+            # axis[1].cla() # wipe previous iteration
+            # axis[1].plot(1/freq_list, power_list)
+            # axis[1].set_xscale("log")
+            # #axis[1].set_yscale("log")
+            #
+            # axis[2].cla() # wipe previous iteration
+            # time = get_time_values(ts["time"], time_format = "unix")
+            # #axis[2].errorbar(time, ls.y, yerr = ls.dy.value.tolist(), fmt = "x")
+            # axis[2].plot(time, ls.y)
+            #
+            print("\n\n\n\n")
 
     #plt.show()
 

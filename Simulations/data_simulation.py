@@ -13,13 +13,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy import units as u
 from astropy.timeseries import LombScargle
+import scipy.stats
+import scipy.special
 from scipy import stats
+from scipy import special
 import statsmodels.api as sm
 
 import multiprocessing
 from tqdm import tqdm
 #from pathos.multiprocessing import ProcessingPool as Pool
 import pathos
+
+# Colour maps for astro
+import cmastro
+
 
 class CCD:
     px_area = 0.28 * u.arcsec
@@ -166,7 +173,7 @@ class CV:
         return self.m0 + self.dm*np.sin((t * w * u.dimensionless_unscaled).value)
 
 
-def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise):
+def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise, method = "baluev", n_bootstraps = None):
     """Noise on each data point - constant or list for periodogram"""
     # Generate time series
     # Assuming continuous sampling
@@ -185,12 +192,12 @@ def calc_alpha(timeseries, magnitude_series, cv_object: CV, noise):
     max_freq = 1e+1*nyquist_freq.to(1/u.s) # pre-factor should = 1, but periodogram is an approximation so leaving room for errors
     (ls, freq, power) = Lomb(timeseries, magnitude_series, errors = noise, factor=factor, max_freq =max_freq)
 
-    alpha_realistic = FAP(ls, power)
+    alpha_realistic = FAP(ls, power, method = method, n_bootstraps = n_bootstraps)
 
 
     return ((freq,power), alpha_realistic)
 
-def FAP(ls: LombScargle, power, method = "baluev"):
+def FAP(ls: LombScargle, power, method = "baluev", n_bootstraps = None):
     """Calculates the false-alarm probabilities from a Lomb-Scargle periodogram.
    
     Args:
@@ -202,7 +209,13 @@ def FAP(ls: LombScargle, power, method = "baluev"):
     # Expect a 1 day signal: f_alias = f_true + n*f_window (c.f. Astropy Lomb-Scargle Periodograms)
     # TODO: Rotational period will have an associated peak
     # Ideally Boostrap sampling, but Baluev is **much** faster
-    realistic_alpha = ls.false_alarm_probability(power.max(), method = method)
+    if method == "bootstrap":
+        if n_bootstraps is None:
+            n_bootstraps = 1000
+
+        realistic_alpha = ls.false_alarm_probability(power.max(), method = "bootstrap", method_kwds = {"n_bootstraps": n_bootstraps})
+    else:
+        realistic_alpha = ls.false_alarm_probability(power.max(), method = method)
     return realistic_alpha
 
 def Lomb(t, magnitude_series, errors = 0, factor = 1, max_freq = 1/u.s):
@@ -213,7 +226,7 @@ def Lomb(t, magnitude_series, errors = 0, factor = 1, max_freq = 1/u.s):
         - freq: Frequency range evaluated
         - power: Power spectrum values
     """
-    ls = LombScargle(t, magnitude_series, errors)
+    ls = LombScargle(t = t, y = magnitude_series, dy = errors, normalization="psd")
 
     # Produced frequencies are NOT angular frequency
     # Period is related by T = 1/f
@@ -223,7 +236,7 @@ def Lomb(t, magnitude_series, errors = 0, factor = 1, max_freq = 1/u.s):
 
     return (ls, freq, power)
 
-def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", probability_threshold = 1e-4):
+def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", alpha_threshold = 1e-4, method = "baluev", n_bootstraps = 1000):
     # SNR calculation 
     snr = observing_setup.snr(sky_type, cv_object.m0, cv_object.size)
 
@@ -253,6 +266,8 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", probabil
         # min magnitude is -inf
         mag_series = np.clip(mag_series, a_min = -100*u.mag, a_max = max_mag)
 
+        assert np.any(mag_series != 0), "WARNING Entire mag series is 0"
+
         # Measurement uncertainty (sigma) = dm/snr
         unc = cv_object.stddev/dm_snr
 
@@ -269,10 +284,11 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", probabil
         #mag_list.append((mag_series, errors))
 
         # Want the uncertainty on measurements
-        (spectrum, alpha_realistic)  = calc_alpha(t,mag_series, cv_object, noise = errors)
+        (spectrum, alpha_realistic)  = calc_alpha(t,mag_series, cv_object, noise = errors, method = method, n_bootstraps = n_bootstraps)
         alpha_list.append(alpha_realistic)
         #spectrum_list.append(spectrum)
 
+    assert len(alpha_list) != 0, "False alarm list is empty??"
 
     # QQ-plot revealed that probablities have outliers some being close to 1
     # need to use nonparametric test as those data points are still important
@@ -298,14 +314,29 @@ def simulate(observing_setup, cv_object, iter_N:int, sky_type = "dark", probabil
     # prob_noise_only = 1/(1 + snr**power_n)
     # prob_peak = 1 - 99.7/100 #0.8 # Assume peak is always present
     # prob_noise_only_given_peak = (prob_noise_only / prob_peak) * alpha_list
-    prob_noise_only_given_peak = np.array(alpha_list)
+    # prob_noise_only_given_peak = np.array(alpha_list)
 
 
 
-    test_result = stats.wilcoxon(prob_noise_only_given_peak - probability_threshold, alternative = "less",
-        correction = False, nan_policy = "omit"
-    )
-    pvalue = test_result.pvalue
+    # test_result = stats.wilcoxon(prob_noise_only_given_peak - probability_threshold, alternative = "less",
+    #     correction = False, nan_policy = "omit"
+    # )
+    alpha_list = np.array(alpha_list)
+    alpha_list = alpha_list[~np.isnan(alpha_list)]
+
+    if len(alpha_list) == 0:
+        pvalue = 0
+    else:
+        test_arr = np.ones(len(alpha_list)) * alpha_threshold
+        diff = alpha_list - test_arr
+
+        zeros = np.zeros(len(diff))
+        test_result = scipy.stats.mannwhitneyu(diff, zeros,
+                                               alternative = "less",
+                                               #= "False",
+                                               nan_policy = "omit"
+                                               )
+        pvalue = test_result.pvalue
 
     #return (alpha_list, (t, mag_list, spectrum_list), pvalue)
     return (alpha_list, (t, None, None), pvalue)
@@ -341,19 +372,22 @@ def main():
     # Plot m0, dm with p-value as heat
     # For each sky (so 3 plots overall)
     # Bounds: sky=[dark, grey, bright], m0=[10, sky_mag[sky_type]], dm = [0, 1]
-    sky_values = ["dark", "grey", "bright"]
+    sky_values = ["dark", "grey"]
     
     sigma_n = {1: 68.27, 2:95.45, 3: 99.73}
     n_sigma_away = 3
     conf_level = sigma_n[n_sigma_away]/100
     conf_level = round(conf_level, 10) # Floating point innacuracies
 
-    probability_threshold = 0.05
+    #probability_threshold = 0.05
+    fap_threshold = 1e-4
 
     iter_N = 1000 # For each innermost loop
 
-    fig, ax = plt.subplots(3)
+    fig, ax = plt.subplots(len(sky_values))
     fig.set_dpi(600) # default 100
+    fig.tight_layout()
+
     # Create a list of points
 
     for idx, sky_type in enumerate(sky_values, start=0):
@@ -363,12 +397,12 @@ def main():
         # Bounds for simulation / plot
         # Ideally values slightly below and above that of the CV object
         # (m0_lower, m0_upper) = (10, sky_mag)
-        (m0_lower, m0_upper) = (14, 16)
+        (m0_lower, m0_upper) = (15, 20)
         m0_values = np.arange(m0_lower, m0_upper+m0_step, m0_step)
 
         dm_step = 0.01
         # (dm_lower, dm_upper) = (0, 0.61)
-        (dm_lower, dm_upper) = (0.14, 0.20)
+        (dm_lower, dm_upper) = (0.20, 0.30)
         dm_values = np.arange(dm_lower, dm_upper+dm_step, dm_step)
     
         X, Y = np.meshgrid(m0_values, dm_values)
@@ -377,13 +411,16 @@ def main():
         # Redefine each time with new cv_object
         def compute_significance(data_point):
             (m0, dm) = data_point
-            cv_object = CV(period =  0.0586*u.day, m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
+            cv_object = CV(period =  (90*u.min).to(u.day), m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
 
-            res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, probability_threshold = probability_threshold)
+            res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, alpha_threshold = fap_threshold,
+                           method = "baluev", n_bootstraps=10)
             (_,_,pvalue) = res
 
             # TODO: Return n-sigma significance (0 = not significant, 1 = 1-sigma, 2 = 2-sigma, 3 = 3-sigma or better)
-            heat = 1 if pvalue <= (1-conf_level) else 0
+            #heat = 1 if pvalue <= (1-conf_level) else 0
+            heat = np.sqrt(2) * scipy.special.erfinv(1 - pvalue)
+            # Round to the nearest half
             return heat
 
         with pathos.multiprocessing.ProcessingPool() as pool:
@@ -400,14 +437,19 @@ def main():
         # Create heatmap of if the *truth* of the peak is significant (1 = True, 0 = False)
         sky_heatmap = ax[idx].imshow(Z,
             extent=[min(m0_values), max(m0_values), min(dm_values), max(dm_values)],
-            origin='lower', aspect='auto', cmap='viridis'
+            origin='lower', aspect='auto',
+
+            #cmap='viridis'
+            cmap = "cma:hesperia"
         )
 
         # TODO: Discrete values on colour bar
-        _ = fig.colorbar(sky_heatmap, ax=ax[idx], label="Sigma significance")
-        ax[idx].set_xlabel("m0")
-        ax[idx].set_ylabel("dm")
-        ax[idx].set_title(f"Pr(NOT FALSE ALARM) = True peak for {sky_type} SKY")
+        _ = fig.colorbar(sky_heatmap, ax=ax[idx], label=r"$\sigma$ significance")
+        ax[idx].set_xlabel("$m_0$")
+        ax[idx].set_ylabel(r"$\Delta m$")
+        #ax[idx].set_title(f"Pr(NOT FALSE ALARM) = True peak for {sky_type} SKY")
+        ax[idx].set_title(f"{sky_type.title()} sky")
+
 
     plt.show()
 
