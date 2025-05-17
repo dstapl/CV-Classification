@@ -382,10 +382,16 @@ def main():
     #probability_threshold = 0.05
     fap_threshold = 1e-4
 
-    iter_N = 1000 # For each innermost loop
+    iter_N = 100_000 # For each point loop
+    n_bootstraps = 10_000 # For each inner inside point loop
+    # Total is iter_N * n_bootstraps
+    
+    # Best (average) pvalue is (1/N_bootstraps) / iter_N
+    p_best = (1/n_bootstraps)
+    heat_max = np.sqrt(2) * scipy.special.erfinv(1 - p_best)
 
     fig, ax = plt.subplots(len(sky_values))
-    fig.set_dpi(600) # default 100
+    fig.set_dpi(800) # default 100
     fig.tight_layout()
 
     # Create a list of points
@@ -407,19 +413,21 @@ def main():
     
         X, Y = np.meshgrid(m0_values, dm_values)
         points = [(x, y) for x, y in zip(X.ravel(), Y.ravel())] # TODO: Not sure if ravel is actually needed
-       
+
         # Redefine each time with new cv_object
         def compute_significance(data_point):
             (m0, dm) = data_point
             cv_object = CV(period =  (90*u.min).to(u.day), m0 = m0*u.mag, dm = dm*u.mag, sigma_m = dm*u.mag) # Initial value of no noise
 
             res = simulate(observing_setup, cv_object, iter_N = iter_N, sky_type = sky_type, alpha_threshold = fap_threshold,
-                           method = "baluev", n_bootstraps=10)
+                           method = "baluev", n_bootstraps=n_bootstraps)
             (_,_,pvalue) = res
 
             # TODO: Return n-sigma significance (0 = not significant, 1 = 1-sigma, 2 = 2-sigma, 3 = 3-sigma or better)
             #heat = 1 if pvalue <= (1-conf_level) else 0
             heat = np.sqrt(2) * scipy.special.erfinv(1 - pvalue)
+
+            heat = np.clip(heat, a_min = 0, a_max = heat_max)
             # Round to the nearest half
             return heat
 
